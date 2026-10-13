@@ -8738,3 +8738,96 @@ events:
       CMAKE_SYSTEM_PROGRAM_PATH:
         - "/bin"
 ...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:2631 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython3.cmake:699 (include)"
+      - "C:/zephyr-workspace/zephyr/cmake/modules/python.cmake:95 (find_package)"
+      - "C:/zephyr-workspace/zephyr/cmake/modules/zephyr_default.cmake:115 (include)"
+      - "C:/zephyr-workspace/zephyr/share/zephyr-package/cmake/ZephyrConfig.cmake:57 (include)"
+      - "C:/zephyr-workspace/zephyr/share/zephyr-package/cmake/ZephyrConfig.cmake:88 (include_boilerplate)"
+      - "CMakeLists.txt:8 (find_package)"
+    mode: "program"
+    variable: "_Python3_EXECUTABLE_DEBUG"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python3.15_d"
+      - "python3.14_d"
+      - "python3.13_d"
+      - "python3.12_d"
+      - "python3_d"
+      - "python_d"
+    candidate_directories:
+      - "C:/zephyr-workspace/.venv/Scripts/"
+    searched_directories:
+      - "C:/zephyr-workspace/.venv/Scripts/python3.15_d.com"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.15_d.exe"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.15_d"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.14_d.com"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.14_d.exe"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.14_d"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.13_d.com"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.13_d.exe"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.13_d"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.12_d.com"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.12_d.exe"
+      - "C:/zephyr-workspace/.venv/Scripts/python3.12_d"
+      - "C:/zephyr-workspace/.venv/Scripts/python3_d.com"
+      - "C:/zephyr-workspace/.venv/Scripts/python3_d.exe"
+      - "C:/zephyr-workspace/.venv/Scripts/python3_d"
+      - "C:/zephyr-workspace/.venv/Scripts/python_d.com"
+      - "C:/zephyr-workspace/.venv/Scripts/python_d.exe"
+      - "C:/zephyr-workspace/.venv/Scripts/python_d"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\zephyr-workspace\\.venv\\Scripts"
+        - "C:\\Renode\\renode_1.17.0-portable"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Aldec\\Active-HDL-Student-Edition\\bin"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\MATLAB\\R2025b\\polyspace\\bin"
+        - "C:\\Program Files\\MATLAB\\R2025b\\bin"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Programs\\Python\\Python312\\"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\RyanS\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\RyanS\\AppData\\Roaming\\npm"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\Users\\RyanS\\AppData\\Local\\Microsoft\\WinGet\\Packages\\oss-winget.dtc_Microsoft.Winget.Source_8wekyb3d8bbwe\\usr\\bin"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/Zephyr-Kernel"
+...

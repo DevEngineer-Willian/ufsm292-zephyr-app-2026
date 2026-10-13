@@ -23,8 +23,8 @@ APPLICATION_CONFIG_DIR:PATH=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app
 //Application Source Directory
 APPLICATION_SOURCE_DIR:PATH=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app
 
-//Selected board
-BOARD:STRING=samr21_xpro
+//No help, variable specified on the command line.
+BOARD:UNINITIALIZED=samr21_xpro
 
 //Main board directory for board (samr21_xpro)
 BOARD_DIR:PATH=C:/zephyr-workspace/zephyr/boards/atmel/sam0/samr21_xpro
@@ -560,7 +560,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=150
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP
