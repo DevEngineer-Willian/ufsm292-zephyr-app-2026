@@ -4,5 +4,8 @@
 menu "Custom libraries"
 
 rsource "custom/Kconfig"
+rsource "radio/Kconfig"
+rsource "gateway_memory/Kconfig"
+rsource "gateway_json/Kconfig"
 
 endmenu

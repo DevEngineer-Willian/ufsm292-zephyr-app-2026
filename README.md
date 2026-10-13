@@ -79,9 +79,8 @@ west build -b $BOARD app
 
 where `$BOARD` is the target board.
 
-You can use the `custom_plank` board found in this
-repository. Note that Zephyr sample boards may be used if an
-appropriate overlay is provided (see `app/boards`).
+Zephyr sample boards may be used if an appropriate overlay is provided
+(see `app/boards`).
 
 A sample debug configuration is also provided. To apply it, run the following
 command:
@@ -94,6 +93,14 @@ Once you have built the application, run the following command to flash it:
 
 ```shell
 west flash
+```
+
+#### Gateway (SAM R21 Xplained Pro)
+
+To build the gateway application for the SAM R21 Xplained Pro board:
+
+```shell
+west build -b samr21_xpro gateway
 ```
 
 ### Testing

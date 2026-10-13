@@ -1,0 +1,27 @@
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+    aliases {
+        eth0 = &eth_enc28j60;
+    };
+};
+
+&sercom5 {
+    status = "okay";
+    compatible = "atmel,sam0-spi";
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    dipo = <0>; /* PAD[0] MISO */
+    dopo = <2>; /* PAD[2] MOSI, PAD[3] SCK */
+
+    cs-gpios = <&porta 16 GPIO_ACTIVE_LOW>;
+
+    eth_enc28j60: enc28j60@0 {
+        compatible = "microchip,enc28j60";
+        reg = <0>;
+        spi-max-frequency = <10000000>;
+        int-gpios = <&porta 17 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        status = "okay";
+    };
+};

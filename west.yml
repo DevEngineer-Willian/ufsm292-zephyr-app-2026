@@ -12,7 +12,12 @@ manifest:
       revision: main
       import:
         name-allowlist:
+<<<<<<< HEAD
           - cmsis_6
           - hal_nordic
           - hal_atmel
           - hal_stm32
+=======
+          - cmsis_6    # required by the ARM port for Cortex-M
+          - hal_atmel  # required by the samr21_xpro board
+>>>>>>> upstream/main

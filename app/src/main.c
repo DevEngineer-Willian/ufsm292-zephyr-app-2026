@@ -5,20 +5,25 @@
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/ieee802154_radio.h>
 
+<<<<<<< HEAD
 /* Inclui o cabeçalho com o codec e as estruturas do Grupo B */
-#include "app/lib/sensor_frame.h" 
+#include "../../lib/radio/sensor_frame.h"
 
 #define I2C_NODE DT_NODELABEL(sercom1)
 #define BNO055_ADDR 0x29
 #define TEMP_SENSOR_ADDR 0x4f
 #define TEMP_REGISTER 0x00
 #define ADC_NODE DT_ALIAS(light_adc)
+=======
+#include <zephyr/app_version.h>
+>>>>>>> upstream/main
 
 #define REG_OPR_MODE 0x3D
 #define REG_ACCEL_DATA_X_LSB 0x08
 #define MODE_ACCONLY 0x01
 #define ADC_CHANNEL_ID 6U
 
+<<<<<<< HEAD
 int main(void) {
     const struct device *i2c_dev = DEVICE_DT_GET(I2C_NODE);
     const struct device *adc_dev = DEVICE_DT_GET(ADC_NODE);
@@ -126,6 +131,19 @@ int main(void) {
 
         tx_packet.uptime_ms = k_uptime_get_32();
         tx_packet.seq++;
+=======
+
+int main(void)
+{
+	
+	//servidor_main();
+	//sensor_main();
+	//gateway_main();
+	//supervisor_main(); 
+	
+	printk("OK\n");
+	
+>>>>>>> upstream/main
 
         printk("Montado [%d] -> Luz:%u Temp:%d.%02dC X:%d Y:%d Z:%d\n",
                tx_packet.seq, tx_packet.light, 

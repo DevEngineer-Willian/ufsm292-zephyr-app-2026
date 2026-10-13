@@ -1,0 +1,42 @@
+{
+  "name": "Zephyr - UFSM292 Projeto Final",
+
+  // Imagem do projeto "Embedded Containers" (recomendada pela própria doc do
+  // Zephyr para quem só precisa de UMA arquitetura de toolchain — aqui, ARM
+  // Cortex-M para o SAMD21/SAMR21). Muito menor que ghcr.io/zephyrproject-rtos/ci,
+  // que traz toolchains para TODAS as arquiteturas e estourava o disco do Codespace.
+  "image": "ghcr.io/embeddedcontainers/zephyr:arm-1.0.1SDK",
+
+  // O repositório clonado pelo Codespaces é montado um nível ABAIXO da raiz
+  // do workspace west, para que "zephyr" e os demais módulos (HALs, etc.)
+  // possam ser baixados como pastas irmãs por "west update" em onCreateCommand.sh.
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/ufsm292-zephyr-app-2026,type=bind",
+  "workspaceFolder": "/workspace/ufsm292-zephyr-app-2026",
+
+  // Sem "remoteUser" definido, o Codespaces usa o usuario padrao já embutido
+  // nesta imagem. Se aparecer erro de permissao (ex.: "cannot create /root"),
+  // precisamos descobrir o nome do usuario padrao desta imagem e fixar aqui.
+  "onCreateCommand": "bash -i /workspace/ufsm292-zephyr-app-2026/.devcontainer/onCreateCommand.sh",
+
+  "remoteEnv": {
+    "LC_ALL": "C",
+    "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "cmake.configureOnOpen": false,
+        "cmake.showOptionsMovedNotification": false,
+        "C_Cpp.default.compileCommands": "/workspace/ufsm292-zephyr-app-2026/app/build/compile_commands.json",
+        "git.autofetch": false
+      },
+      "extensions": [
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cmake-tools",
+        "trond-snekvik.devicetree",
+        "redhat.vscode-yaml"
+      ]
+    }
+  }
+}
