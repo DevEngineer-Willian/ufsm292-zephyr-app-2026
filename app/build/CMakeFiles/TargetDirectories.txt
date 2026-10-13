@@ -331,6 +331,12 @@ C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr
 C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/drivers/sensor/CMakeFiles/rebuild_cache.dir
 C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/CMakeFiles/edit_cache.dir
 C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/CMakeFiles/rebuild_cache.dir
+C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_memory/CMakeFiles/..__ufsm292-zephyr-app-2026.git__lib__gateway_memory.dir
+C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_memory/CMakeFiles/edit_cache.dir
+C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_memory/CMakeFiles/rebuild_cache.dir
+C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_json/CMakeFiles/..__ufsm292-zephyr-app-2026.git__lib__gateway_json.dir
+C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_json/CMakeFiles/edit_cache.dir
+C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_json/CMakeFiles/rebuild_cache.dir
 C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/cmsis_6/CMakeFiles/edit_cache.dir
 C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/cmsis_6/CMakeFiles/rebuild_cache.dir
 C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/atmel/CMakeFiles/edit_cache.dir

@@ -16,10 +16,15 @@ C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\app\build\Kconfig\soc\Kconfig.so
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\Kconfig
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\blink\Kconfig
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\blink\Kconfig.gpio_led
+C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\ethernet\Kconfig
+C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\ethernet\Kconfig.ksz8851snl
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\sensor\Kconfig
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\drivers\sensor\example_sensor\Kconfig
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\lib\Kconfig
 C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\lib\custom\Kconfig
+C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\lib\gateway_json\Kconfig
+C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\lib\gateway_memory\Kconfig
+C:\zephyr-workspace\ufsm292-zephyr-app-2026.git\lib\radio\Kconfig
 C:\zephyr-workspace\zephyr\Kconfig.constants
 C:\zephyr-workspace\zephyr\Kconfig.zephyr
 C:\zephyr-workspace\zephyr\arch\Kconfig

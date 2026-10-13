@@ -23,8 +23,8 @@ APPLICATION_CONFIG_DIR:PATH=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app
 //Application Source Directory
 APPLICATION_SOURCE_DIR:PATH=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app
 
-//No help, variable specified on the command line.
-BOARD:UNINITIALIZED=samr21_xpro
+//Selected board
+BOARD:STRING=samr21_xpro
 
 //Main board directory for board (samr21_xpro)
 BOARD_DIR:PATH=C:/zephyr-workspace/zephyr/boards/atmel/sam0/samr21_xpro
@@ -431,6 +431,15 @@ app_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 app_SOURCE_DIR:STATIC=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app
 
+//Value Computed by CMake
+ufsm292-zephyr-app-2026_BINARY_DIR:STATIC=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git
+
+//Value Computed by CMake
+ufsm292-zephyr-app-2026_IS_TOP_LEVEL:STATIC=OFF
+
+//Value Computed by CMake
+ufsm292-zephyr-app-2026_SOURCE_DIR:STATIC=C:/zephyr-workspace/ufsm292-zephyr-app-2026.git
+
 
 ########################
 # INTERNAL cache entries
@@ -560,7 +569,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=1
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=152
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP

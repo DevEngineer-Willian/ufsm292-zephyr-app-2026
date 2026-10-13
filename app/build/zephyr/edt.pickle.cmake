@@ -596,8 +596,8 @@ set_target_properties(${DEVICETREE_TARGET}
     "DT_UNIT_ADDR|/soc/adc@42004000" "0x42004000"
     "DT_NODE|/soc/adc@42004000/channel@6" TRUE
     "DT_PROP|/soc/adc@42004000/channel@6|reg" "6"
-    "DT_PROP|/soc/adc@42004000/channel@6|zephyr,gain" "ADC_GAIN_1"
-    "DT_PROP|/soc/adc@42004000/channel@6|zephyr,reference" "ADC_REF_VDD_1"
+    "DT_PROP|/soc/adc@42004000/channel@6|zephyr,gain" "ADC_GAIN_1_2"
+    "DT_PROP|/soc/adc@42004000/channel@6|zephyr,reference" "ADC_REF_VDD_1_2"
     "DT_PROP|/soc/adc@42004000/channel@6|zephyr,acquisition-time" "0"
     "DT_PROP|/soc/adc@42004000/channel@6|zephyr,differential" "False"
     "DT_PROP|/soc/adc@42004000/channel@6|zephyr,resolution" "12"

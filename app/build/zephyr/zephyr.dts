@@ -455,11 +455,11 @@
 
 			/* node '/soc/adc@42004000/channel@6' defined in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:28 */
 			channel@6 {
-				reg = < 0x6 >;                      /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:29 */
-				zephyr,gain = "ADC_GAIN_1";         /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:30 */
-				zephyr,reference = "ADC_REF_VDD_1"; /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:31 */
-				zephyr,acquisition-time = < 0x0 >;  /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:32 */
-				zephyr,resolution = < 0xc >;        /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:33 */
+				reg = < 0x6 >;                        /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:29 */
+				zephyr,gain = "ADC_GAIN_1_2";         /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:30 */
+				zephyr,reference = "ADC_REF_VDD_1_2"; /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:31 */
+				zephyr,acquisition-time = < 0x0 >;    /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:32 */
+				zephyr,resolution = < 0xc >;          /* in ufsm292-zephyr-app-2026.git\app\boards\samr21_xpro.overlay:33 */
 			};
 		};
 

@@ -9,7 +9,10 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(app LANGUAGES C)
 
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE 
+    src/main.c
+    ../lib/radio/sensor_frame.c
+)
 
 # The code below locates the git index file for this repository and adds it as a dependency for
 # the application VERSION file so that if the repo has a new commit added, even if no files in

@@ -5,25 +5,20 @@
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/ieee802154_radio.h>
 
-<<<<<<< HEAD
-/* Inclui o cabeçalho com o codec e as estruturas do Grupo B */
-#include "../../lib/radio/sensor_frame.h"
+/* Importação corrigida apontando para a pasta include mapeada pelo Zephyr */
+#include <app/lib/sensor_frame.h> 
 
 #define I2C_NODE DT_NODELABEL(sercom1)
 #define BNO055_ADDR 0x29
 #define TEMP_SENSOR_ADDR 0x4f
 #define TEMP_REGISTER 0x00
 #define ADC_NODE DT_ALIAS(light_adc)
-=======
-#include <zephyr/app_version.h>
->>>>>>> upstream/main
 
 #define REG_OPR_MODE 0x3D
 #define REG_ACCEL_DATA_X_LSB 0x08
 #define MODE_ACCONLY 0x01
 #define ADC_CHANNEL_ID 6U
 
-<<<<<<< HEAD
 int main(void) {
     const struct device *i2c_dev = DEVICE_DT_GET(I2C_NODE);
     const struct device *adc_dev = DEVICE_DT_GET(ADC_NODE);
@@ -49,7 +44,6 @@ int main(void) {
     int32_t light_mv;
     int ret;
 
-    /* Instanciamos a estrutura oficial do Grupo B */
     struct sensor_reading tx_packet = {
         .node_id = 1,
         .seq = 0,
@@ -78,7 +72,6 @@ int main(void) {
     i2c_reg_write_byte(i2c_dev, BNO055_ADDR, REG_OPR_MODE, MODE_ACCONLY);
     k_msleep(50);
 
-    /* --- INICIALIZAÇÃO DA API DE RÁDIO DO ZEPHYR --- */
     const struct device *const radio = DEVICE_DT_GET(DT_CHOSEN(zephyr_ieee802154));
     if (!device_is_ready(radio)) {
         printk("Erro: Dispositivo de radio nao pronto.\n");
@@ -90,16 +83,14 @@ int main(void) {
     api->set_txpower(radio, 0);
     api->start(radio);
     
-    /* Configuração MAC exigida pelo Codec */
     struct sensor_frame_cfg cfg = {
         .pan_id = 0xCAFE,
-        .dst_short_addr = 0xFFFF, // Broadcast
-        .src_short_addr = 1,      // Seu Node ID
+        .dst_short_addr = 0xFFFF, 
+        .src_short_addr = 1,      
         .mac_seq = 0,
         .ack_request = false
     };
     
-    /* Buffer de 27 bytes exigido para receber o cabeçalho + payload */
     uint8_t psdu[SENSOR_FRAME_LEN]; 
 
     printk("==> Radio Nativo Pronto! API Direta configurada.\n");
@@ -131,19 +122,6 @@ int main(void) {
 
         tx_packet.uptime_ms = k_uptime_get_32();
         tx_packet.seq++;
-=======
-
-int main(void)
-{
-	
-	//servidor_main();
-	//sensor_main();
-	//gateway_main();
-	//supervisor_main(); 
-	
-	printk("OK\n");
-	
->>>>>>> upstream/main
 
         printk("Montado [%d] -> Luz:%u Temp:%d.%02dC X:%d Y:%d Z:%d\n",
                tx_packet.seq, tx_packet.light, 
@@ -151,7 +129,6 @@ int main(void)
                tx_packet.temp_c_x100 >= 0 ? (tx_packet.temp_c_x100 % 100) : -(tx_packet.temp_c_x100 % 100), 
                tx_packet.accel[0], tx_packet.accel[1], tx_packet.accel[2]);
 
-        /* --- ENVIO USANDO O CODEC DO GRUPO B --- */
         int enc_ret = sensor_frame_encode(psdu, sizeof(psdu), &cfg, &tx_packet);
         
         if (enc_ret >= 0) {
@@ -165,9 +142,9 @@ int main(void)
                 }
                 net_pkt_unref(pkt);
             }
-            cfg.mac_seq++; // Incrementar conforme exigido
+            cfg.mac_seq++; 
         } else {
-            printk("ERRO: O codec do Grupo B falhou ao forjar o pacote! (Codigo: %d)\n", enc_ret);
+            printk("ERRO: O codec falhou ao forjar o pacote! (Codigo: %d)\n", enc_ret);
         }
         
         k_msleep(1000);

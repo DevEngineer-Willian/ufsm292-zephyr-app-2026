@@ -136,6 +136,8 @@
 		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/drivers/blink/cmake_install.cmake",
 		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/drivers/sensor/cmake_install.cmake",
 		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/cmake_install.cmake",
+		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_memory/cmake_install.cmake",
+		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/ufsm292-zephyr-app-2026.git/lib/gateway_json/cmake_install.cmake",
 		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/cmsis_6/cmake_install.cmake",
 		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/atmel/cmake_install.cmake",
 		"C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/modules/atmel/asf/cmake_install.cmake",

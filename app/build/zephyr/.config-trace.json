@@ -260,7 +260,7 @@
     "default",
     [
       "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/Kconfig/Kconfig.dts",
-      7203
+      7208
     ]
   ],
   [
@@ -271,7 +271,7 @@
     "default",
     [
       "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/Kconfig/Kconfig.dts",
-      11258
+      11263
     ]
   ],
   [
@@ -282,7 +282,7 @@
     "default",
     [
       "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/Kconfig/Kconfig.dts",
-      14723
+      14728
     ]
   ],
   [
@@ -293,7 +293,7 @@
     "default",
     [
       "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/build/Kconfig/Kconfig.dts",
-      19403
+      19408
     ]
   ],
   [
@@ -328,7 +328,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\drivers\\adc\\Kconfig",
-      72
+      80
     ]
   ],
   [
@@ -587,7 +587,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      777
+      783
     ]
   ],
   [
@@ -598,7 +598,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      166
+      169
     ]
   ],
   [
@@ -609,7 +609,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      238
+      244
     ]
   ],
   [
@@ -788,7 +788,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      746
+      749
     ]
   ],
   [
@@ -799,7 +799,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      754
+      757
     ]
   ],
   [
@@ -810,7 +810,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      762
+      765
     ]
   ],
   [
@@ -821,7 +821,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      770
+      773
     ]
   ],
   [
@@ -1197,7 +1197,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      257
+      263
     ]
   ],
   [
@@ -1268,7 +1268,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      324
+      330
     ]
   ],
   [
@@ -1306,7 +1306,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      754
+      760
     ]
   ],
   [
@@ -1408,6 +1408,36 @@
     null,
     "unset",
     null
+  ],
+  [
+    "CONFIG_RADIO",
+    "y",
+    "bool",
+    null,
+    "unset",
+    null
+  ],
+  [
+    "CONFIG_GATEWAY_MEMORY",
+    "y",
+    "bool",
+    "y",
+    "default",
+    [
+      "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/lib/gateway_memory/Kconfig",
+      6
+    ]
+  ],
+  [
+    "CONFIG_GATEWAY_JSON",
+    "y",
+    "bool",
+    "y",
+    "default",
+    [
+      "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/lib/gateway_json/Kconfig",
+      7
+    ]
   ],
   [
     "CONFIG_ZEPHYR_UFSM292_ZEPHYR_APP_2026_GIT_MODULE",
@@ -1607,14 +1637,6 @@
       "C:\\zephyr-workspace\\zephyr\\boards\\Kconfig",
       24
     ]
-  ],
-  [
-    "CONFIG_NET_DRIVERS",
-    "y",
-    "bool",
-    null,
-    "unset",
-    null
   ],
   [
     "CONFIG_BOARD_SAMR21_XPRO",
@@ -3780,7 +3802,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\lib\\net_buf\\Kconfig",
-      70
+      76
     ]
   ],
   [
@@ -4432,6 +4454,14 @@
   ],
   [
     "CONFIG_MUX",
+    "y",
+    "bool",
+    null,
+    "unset",
+    null
+  ],
+  [
+    "CONFIG_NET_DRIVERS",
     "y",
     "bool",
     null,
@@ -5304,7 +5334,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      241
+      244
     ]
   ],
   [
@@ -5315,7 +5345,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      936
+      939
     ]
   ],
   [
@@ -5337,7 +5367,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      798
+      801
     ]
   ],
   [
@@ -7740,7 +7770,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      202
+      205
     ]
   ],
   [
@@ -7773,7 +7803,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      264
+      267
     ]
   ],
   [
@@ -7816,7 +7846,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      332
+      335
     ]
   ],
   [
@@ -7843,7 +7873,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      413
+      416
     ]
   ],
   [
@@ -7854,7 +7884,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      421
+      424
     ]
   ],
   [
@@ -7873,7 +7903,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      435
+      438
     ]
   ],
   [
@@ -7892,7 +7922,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      545
+      548
     ]
   ],
   [
@@ -7903,7 +7933,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      552
+      555
     ]
   ],
   [
@@ -7914,7 +7944,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      558
+      561
     ]
   ],
   [
@@ -7925,7 +7955,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      566
+      569
     ]
   ],
   [
@@ -7944,7 +7974,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      582
+      585
     ]
   ],
   [
@@ -7955,7 +7985,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      589
+      592
     ]
   ],
   [
@@ -8054,7 +8084,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      777
+      780
     ]
   ],
   [
@@ -8073,7 +8103,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      823
+      826
     ]
   ],
   [
@@ -8094,7 +8124,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      849
+      852
     ]
   ],
   [
@@ -8105,7 +8135,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      870
+      873
     ]
   ],
   [
@@ -8116,7 +8146,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      882
+      885
     ]
   ],
   [
@@ -8151,7 +8181,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\subsys\\net\\ip\\Kconfig",
-      929
+      932
     ]
   ],
   [
@@ -9348,7 +9378,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      179
+      185
     ]
   ],
   [
@@ -9359,7 +9389,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      190
+      196
     ]
   ],
   [
@@ -9370,7 +9400,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      194
+      200
     ]
   ],
   [
@@ -9397,7 +9427,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      244
+      250
     ]
   ],
   [
@@ -9416,7 +9446,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      292
+      298
     ]
   ],
   [
@@ -9427,7 +9457,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      308
+      314
     ]
   ],
   [
@@ -9438,7 +9468,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      338
+      344
     ]
   ],
   [
@@ -9449,7 +9479,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      344
+      350
     ]
   ],
   [
@@ -9468,7 +9498,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      378
+      384
     ]
   ],
   [
@@ -9521,7 +9551,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      457
+      463
     ]
   ],
   [
@@ -9596,7 +9626,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      543
+      549
     ]
   ],
   [
@@ -9607,7 +9637,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      551
+      557
     ]
   ],
   [
@@ -9626,7 +9656,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      558
+      564
     ]
   ],
   [
@@ -9661,7 +9691,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      607
+      613
     ]
   ],
   [
@@ -9672,7 +9702,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      614
+      620
     ]
   ],
   [
@@ -9691,7 +9721,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      630
+      636
     ]
   ],
   [
@@ -9734,7 +9764,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      661
+      667
     ]
   ],
   [
@@ -9745,7 +9775,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      685
+      691
     ]
   ],
   [
@@ -9756,7 +9786,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      691
+      697
     ]
   ],
   [
@@ -9775,7 +9805,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      733
+      739
     ]
   ],
   [
@@ -9890,7 +9920,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      983
+      989
     ]
   ],
   [
@@ -9901,7 +9931,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      997
+      1003
     ]
   ],
   [
@@ -9920,7 +9950,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      1029
+      1035
     ]
   ],
   [
@@ -9949,7 +9979,7 @@
     "default",
     [
       "C:\\zephyr-workspace\\zephyr\\Kconfig.zephyr",
-      1065
+      1071
     ]
   ],
   [
