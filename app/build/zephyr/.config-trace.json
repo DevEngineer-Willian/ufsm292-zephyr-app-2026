@@ -4148,9 +4148,12 @@
     "CONFIG_IEEE802154_L2_PKT_INCL_FCS",
     "y",
     "bool",
-    null,
-    "unset",
-    null
+    "n",
+    "assign",
+    [
+      "C:/zephyr-workspace/ufsm292-zephyr-app-2026.git/app/prj.conf",
+      27
+    ]
   ],
   [
     "CONFIG_IEEE802154_RF2XX",
