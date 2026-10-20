@@ -91,7 +91,8 @@ LOG_MODULE_REGISTER(eth_ksz8851snl, CONFIG_ETHERNET_LOG_LEVEL);
 #define P1SR_LINK_GOOD BIT(5)
 #define KS_RX_MAX_WIRE 2004U
 #define KS_RX_PREFIX   8U
-#define KS_FRAME_MAX   (KS_RX_MAX_WIRE + KS_RX_PREFIX)
+/* Only standard Ethernet frames are delivered; larger frames are released. */
+#define KS_FRAME_MAX   (ROUND_UP(KS_TX_MAX_FRAME + 4U, 4U) + KS_RX_PREFIX)
 #define KS_TX_MAX_FRAME 1514U
 #define KS_MIN_FRAME   60U
 #define KS_TX_MIN      14U
@@ -426,6 +427,26 @@ static void rx_drop(struct ksz_data *data, uint16_t stat, uint16_t wire_len)
 	}
 }
 
+/* RRXEF is asynchronous: do not start another RX/TX DMA until it clears. */
+static int rx_release(const struct device *dev)
+{
+	int ret = reg_write(dev, KS_RXQCR, RXQCR_BASE | RXQCR_RRXEF);
+	int64_t deadline = k_uptime_get() + KS_TX_WAIT_MS;
+
+	while (ret == 0) {
+		uint16_t control;
+
+		ret = reg_read(dev, KS_RXQCR, &control);
+		if (ret < 0 || (control & RXQCR_RRXEF) == 0) {
+			return ret;
+		}
+		if (k_uptime_get() >= deadline) {
+			return -ETIMEDOUT;
+		}
+	}
+	return ret;
+}
+
 static int rx_drain(const struct device *dev)
 {
 	struct ksz_data *data = dev->data;
@@ -442,12 +463,10 @@ static int rx_drain(const struct device *dev)
 	if (count == 0U) {
 		return 0;
 	}
-	unsigned int limit = count;
-
-	if (limit > 8U) {
-		limit = 8U;
-	}
-	for (unsigned int n = 0; n < limit; n++) {
+	/* RXFCTR and the header registers describe one interrupt snapshot.
+	 * Consume all of it before acknowledging another RX interrupt.
+	 */
+	for (unsigned int n = 0; n < count; n++) {
 		uint16_t stat;
 		uint16_t wire_len;
 
@@ -514,7 +533,7 @@ static int rx_drain(const struct device *dev)
 			rx_drop(data, stat, wire_len);
 		}
 
-		int qret = reg_write(dev, KS_RXQCR, RXQCR_BASE | RXQCR_RRXEF);
+		int qret = rx_release(dev);
 
 		if (ret == 0) {
 			ret = qret;
@@ -537,14 +556,7 @@ static int rx_drain(const struct device *dev)
 				eth_stats_update_pkts_rx(data->iface);
 			}
 			k_mutex_lock(&data->lock, K_FOREVER);
-			if (ret < 0) {
-				k_sem_give(&data->event);
-				return ret;
-			}
 		}
-	}
-	if (count > limit) {
-		k_sem_give(&data->event);
 	}
 	return 0;
 }
@@ -612,7 +624,7 @@ static void worker(void *a, void *b, void *c)
 		if (ret == 0 && handled != 0) {
 			ret = reg_write(dev, KS_ISR, handled);
 		}
-		if (ret == 0) {
+		if (ret == 0 && (irq & IRQ_RXI) != 0) {
 			ret = rx_drain(dev);
 		}
 		if (ret == 0) {
