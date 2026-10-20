@@ -32,7 +32,7 @@ extern "C" {
  * vectors and makes the format cheap to change on both ends at once.
  */
 
-/** Application payload length fixed by `gateway/AGENTS.md`. */
+/** Application payload length fixed by the sensor-frame protocol. */
 #define SENSOR_PAYLOAD_LEN 18U
 
 /**

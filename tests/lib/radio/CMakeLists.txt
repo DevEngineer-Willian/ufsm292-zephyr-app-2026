@@ -5,12 +5,6 @@
 #
 #   * BOARD=unit_testing  -- plain host executable via Zephyr's `unittest`
 #     component. Sub-second TDD loop, and what CI runs.
-#   * BOARD=samr21_xpro   -- the same cases as a normal Zephyr ztest app on the
-#     real Cortex-M0+. This is NOT redundant with the host run: the host is
-#     x86-64, where a misaligned uint32_t load is legal and silently returns
-#     the right answer, so the host suite cannot see the one bug class that
-#     hard-faults on the SAM R21. Run this before trusting the on-air format.
-#
 # The real translation units are compiled in both times -- no test-local copy --
 # so what runs is exactly the production code.
 

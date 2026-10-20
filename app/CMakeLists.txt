@@ -14,6 +14,8 @@ target_sources(app PRIVATE
     ../lib/radio/sensor_frame.c
 )
 
+target_include_directories(app PRIVATE ../include)
+
 # The code below locates the git index file for this repository and adds it as a dependency for
 # the application VERSION file so that if the repo has a new commit added, even if no files in
 # the build have changed, the application version file will be regenerated with the new git commit

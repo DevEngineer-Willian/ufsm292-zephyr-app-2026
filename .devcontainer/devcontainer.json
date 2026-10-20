@@ -3,7 +3,7 @@
 
   // Imagem do projeto "Embedded Containers" (recomendada pela própria doc do
   // Zephyr para quem só precisa de UMA arquitetura de toolchain — aqui, ARM
-  // Cortex-M para o SAMD21/SAMR21). Muito menor que ghcr.io/zephyrproject-rtos/ci,
+  // Cortex-M para a SAMD21). Muito menor que ghcr.io/zephyrproject-rtos/ci,
   // que traz toolchains para TODAS as arquiteturas e estourava o disco do Codespace.
   "image": "ghcr.io/embeddedcontainers/zephyr:arm-1.0.1SDK",
 
@@ -28,7 +28,7 @@
       "settings": {
         "cmake.configureOnOpen": false,
         "cmake.showOptionsMovedNotification": false,
-        "C_Cpp.default.compileCommands": "/workspace/ufsm292-zephyr-app-2026/app/build/compile_commands.json",
+        "C_Cpp.default.compileCommands": "/workspace/ufsm292-zephyr-app-2026/build/compile_commands.json",
         "git.autofetch": false
       },
       "extensions": [

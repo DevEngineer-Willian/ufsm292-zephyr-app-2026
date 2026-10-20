@@ -1,37 +1,40 @@
 #include <zephyr/kernel.h>
-#include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/device.h>
+#include <app/drivers/blink.h>
 
-LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
-
-/* Obtém a definição do LED 'led0' configurado no DTS da SAMD21 XPro (PB30) */
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+/* Obtém o dispositivo configurado com "compatible = blink-gpio-led" */
+static const struct device *const blink_dev = DEVICE_DT_GET(DT_NODELABEL(blink_led));
 
 int main(void)
 {
     int ret;
 
-    LOG_INF("Iniciando a aplicacao Blink na SAMD21 XPro...");
+    printk("\n=============================================\n");
+    printk("   ZEPHYR RTOS - DRIVER NATIVO BLINK_GPIO_LED \n");
+    printk("=============================================\n");
 
-    if (!gpio_is_ready_dt(&led)) {
-        LOG_ERR("Dispositivo GPIO do LED nao esta pronto!");
-        return 0;
+    /* 1. Validação de Prontidão do Dispositivo */
+    if (!device_is_ready(blink_dev)) {
+        printk("ERRO: Dispositivo de Blink customizado nao esta pronto!\n");
+        return -ENODEV;
     }
 
-    ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+    printk("Dispositivo de Blink customizado reconhecido pelo Kernel.\n");
+
+    /* 2. Configura o período de piscada usando a API oficial do driver */
+    ret = blink_set_period_ms(blink_dev, 500);
     if (ret < 0) {
-        LOG_ERR("Falha ao configurar o pino do LED (%d)", ret);
-        return 0;
+        printk("ERRO (%d): Falha ao definir o periodo do LED!\n", ret);
+        return ret;
     }
 
-    LOG_INF("LED configurado com sucesso. Iniciando o loop de pisca...");
+    printk("Periodo definido para 500ms via blink_set_period_ms().\n");
 
+    /* 3. Loop principal monitorando o funcionamento */
     while (1) {
-        ret = gpio_pin_toggle_dt(&led);
-        if (ret < 0) {
-            LOG_ERR("Falha ao alternar o estado do LED");
-        }
-        k_msleep(500); /* Aguarda 500ms (pisca a 1 Hz) */
+        printk("LOG: Driver Blink operando normalmente...\n");
+        k_msleep(2000);
     }
 
     return 0;

@@ -1,7 +1,0 @@
-&ieee802154 {
-    status = "disabled";
-};
-
-&sercom4 {
-    status = "disabled";
-};

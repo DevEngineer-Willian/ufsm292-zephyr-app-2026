@@ -4,7 +4,5 @@
 config RADIO
 	bool "Shared 802.15.4 sensor-frame codec"
 	help
-	  Enables the shared sensor-frame encoder/decoder used by the sensor
-	  nodes (encode + transmit) and the gateway (receive + decode). The
-	  on-air format is the 18-byte payload defined in gateway/AGENTS.md
-	  carried in a proper 802.15.4 MAC data frame; see gateway/radio-plan.md.
+	  Enables the shared 802.15.4 sensor-frame encoder/decoder. The on-air
+	  format is an 18-byte payload carried in a standard MAC data frame.

@@ -1,27 +1,17 @@
-#include <zephyr/dt-bindings/gpio/gpio.h>
-
 / {
-    aliases {
-        eth0 = &eth_enc28j60;
+    chosen {
+        zephyr,console = &sercom3;
+        zephyr,shell-uart = &sercom3;
+    };
+
+    /* Nó instanciado seguindo estritamente o binding blink-gpio-leds.yaml */
+    blink_led: blink_led {
+        compatible = "blink-gpio-led";
+        led-gpios = <&portb 30 GPIO_ACTIVE_HIGH>;
+        status = "okay";
     };
 };
 
-&sercom5 {
+&sercom3 {
     status = "okay";
-    compatible = "atmel,sam0-spi";
-    #address-cells = <1>;
-    #size-cells = <0>;
-
-    dipo = <0>; /* PAD[0] MISO */
-    dopo = <2>; /* PAD[2] MOSI, PAD[3] SCK */
-
-    cs-gpios = <&porta 16 GPIO_ACTIVE_LOW>;
-
-    eth_enc28j60: enc28j60@0 {
-        compatible = "microchip,enc28j60";
-        reg = <0>;
-        spi-max-frequency = <10000000>;
-        int-gpios = <&porta 17 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-        status = "okay";
-    };
 };

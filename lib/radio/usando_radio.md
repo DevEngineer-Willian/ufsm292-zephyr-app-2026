@@ -166,7 +166,6 @@ Campo são signed: `temp_c_x100` é Celsius × 100
 ## 6. Ligando o rádio
 
 Configurar o hardware é responsabilidade do projeto, o codec só transmuta sensor_frames em buffer e não configura o hardware.
-pode seguir o que `gateway/src/main.c` faz:
 
 Canal e PAN ID combinados para o projeto: canal 15, PAN ID 0xCAFE.
 
@@ -245,7 +244,7 @@ o que faz o driver passar os 2 bytes extra do FCS para o decodifidor e daí a co
 Caso não bata leia as fontes:
 
 - `tests/lib/radio/` — 23 casos que cobrem encode, decode, os cabeçalhos, encodificando e decodificando e valor que podem causar problemas..
-- Pode testar no host (`west twister -T tests/lib/radio --tag unit`) e no SAM (`west build -b samr21_xpro tests/lib/radio`), mas note que o host tolera accessos não alinhados que o Cortex M0+ do SAM não tolera
+- Pode testar no host (`west twister -T tests/lib/radio --tag unit`); o Cortex-M0+ também exige acesso alinhado aos buffers.
 - `lib/radio/radio_test_pattern.c` uma sequencia determinista de teste;
   `include/app/lib/radio_test_pattern.h` documenta a fórmula, coberta pelos testes de unidade.
 

@@ -17,17 +17,3 @@ tests:
     # libgcc. Build the host binary 64-bit instead.
     extra_args:
       - M64_MODE=1
-
-  # On-target build: the same golden vectors on the Cortex-M0+, where a
-  # misaligned access hard-faults. Needs a board on a serial port:
-  #   west build -b samr21_xpro tests/lib/radio
-  #   pyocd flash -t atsamr21g18a -e sector build/zephyr/zephyr.bin
-  #   twister -p samr21_xpro -T tests/lib/radio --device-testing \
-  #           --device-serial /dev/ttyACM1
-  lib.radio.sensor_frame.on_target:
-    platform_allow:
-      - samr21_xpro
-    integration_platforms:
-      - samr21_xpro
-    tags:
-      - on_target

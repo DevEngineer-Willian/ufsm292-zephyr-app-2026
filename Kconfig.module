@@ -1,0 +1,4 @@
+# Custom module options.
+
+rsource "drivers/Kconfig"
+rsource "lib/Kconfig"

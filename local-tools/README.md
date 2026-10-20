@@ -13,7 +13,7 @@
 #   cp /tmp/edbg-src/edbg <this dir>/edbg
 #   ./local-tools/edbg -l        # should list attached EDBG probes
 #
-# Then, e.g.: ./local-tools/edbg -t samr21 -e -p -v -f <build>/zephyr/zephyr.elf
+# Then, e.g.: ./local-tools/edbg -t samd21 -e -p -v -f build/zephyr/zephyr.hex
 #
 # Notes:
 # - `edbg` needs USB access to the probes (same udev rules as openocd;
