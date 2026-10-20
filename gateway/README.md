@@ -68,9 +68,9 @@ lengths. A captured gateway fault had a 157-byte PHY length; the driver copied
 address. Disabling promiscuous mode reduces exposure but cannot replace bounds
 checking before the driver reads the frame.
 
-`gateway/patches/rf2xx-rx-length.patch` preserves the driver fix applied to the
-workspace Zephyr checkout. After restoring that revision with `west update`,
-apply it before building:
+`gateway/patches/rf2xx-rx-length.patch` holds that fix. It is **not** applied to
+the workspace checkout, which is left clean at `c605ea46e15f`, so apply it before
+building the gateway:
 
 ```sh
 patch -d "$(west list zephyr -f '{abspath}')" -p1 \
@@ -80,6 +80,9 @@ patch -d "$(west list zephyr -f '{abspath}')" -p1 \
 The patch rejects PHY lengths greater than 127 before the SPI frame read, in
 both filtered and promiscuous modes. The existing filtered minimum-length check
 is retained. It adds no RAM or stack allocation.
+
+A host-only reproducer for the overflow, with Zephyr worktrees for both the
+unpatched and patched driver, lives in `~/workspace/radio`.
 
 ## Application threads
 
@@ -94,6 +97,12 @@ Bounded delayed work logs gateway statistics every five seconds and Ethernet
 carrier/admin status and current IPv4 address every ten seconds (`ip=none`
 when no preferred address exists); network I/O never runs on the system
 workqueue. TCP retains its own Zephyr workqueue.
+
+The KSZ8851 worker acknowledges an RX interrupt before reading its frame-count
+snapshot, then consumes every header/frame in that snapshot before acknowledging
+another RX interrupt. It does not reinterpret a cached count on unrelated polls.
+Manual frame release (`RXQCR.RRXEF`) is polled to completion before another
+RX/TX DMA operation, as required by the controller's self-clearing release bit.
 
 The RX loop receives a complete frame, decodes a `sensor_reading`, then calls
 `handle_sensor_reading()`. That handler updates the table under
@@ -114,15 +123,25 @@ chunk. Sensor encoding uses a 128-byte whole-table snapshot on main's stack.
 There is no application heap allocation. Shared network pools use eight RX
 and eight TX buffers with 256-byte payloads; packet counts are eight RX and
 two TX. Preserve sufficient fragments for full Ethernet frames.
+The KSZ8851 shares a 1528-byte standard-frame scratch buffer between RX and TX;
+unsupported jumbo frames are released without copying them into a jumbo buffer.
 
-`NET_MAX_CONTEXTS=3` covers the radio socket, HTTP listener and one accepted
-connection. Zephyr DHCPv4 uses packets directly, not a socket/context.
+`NET_MAX_CONTEXTS=4` covers the radio socket, HTTP listener, current client and
+one overlapping close/queued/overflow client. `NET_MAX_CONN=5` also covers
+DHCPv4's UDP handler: it registers a connection without owning a socket context.
+Both pools must accommodate close-handshake overlap; sizing only contexts still
+causes incoming connections to be reset when the registration pool is full.
 `MAIN_STACK_SIZE=2048`, `ISR_STACK_SIZE=1024`, `NET_IPV4_MAX_ROUTES=2`,
-`LOG_BUFFER_SIZE=512`. The HTTP-enabled SAM R21 build uses 31740/32768 bytes
-of RAM (96.86%) and 126772/262144 bytes of flash (48.36%).
-Hardware stack high-water marks and concurrent Ethernet/radio traffic still
-need validation; the remaining 1028 bytes are not justification for adding
-another thread or client.
+`LOG_BUFFER_SIZE=512`. The SAM R21 build uses 32244/32768 bytes of RAM (98.40%)
+and 127280/262144 bytes of flash (48.55%), leaving 524 bytes outside the
+statically reserved storage. No additional thread or application heap is used.
+
+An on-board smoke ran 100 back-to-back curls across 200/404/405 responses with
+no transport failures, then verified overload rejection and 20 recovery requests.
+Afterward both client contexts were free and only the TCP listener remained.
+Untouched stack bytes after the exercised paths were main 340, Ethernet 384,
+TCP 728, logger 212 and radio 1288; all measured stack sentinels were intact.
+These measurements do not establish worst-case concurrent radio/Ethernet use.
 
 ## HTTP API
 
@@ -131,6 +150,13 @@ incremental HTTP parser. The listener binds all IPv4 addresses on
 `CONFIG_GATEWAY_HTTP_PORT` (default 80); it can bind before DHCP supplies an
 address. Each response includes `Content-Length`, `application/json`, and
 `Connection: close`. Keep-alive and pipelining are not supported.
+
+After serving a response, main waits up to one second for the peer to close,
+discarding any additional data without interpreting another request. Curl can
+finish from `Content-Length` and close first, so the gateway performs a passive
+TCP close rather than retaining a `TIME_WAIT` context for every normal request.
+A peer waiting for EOF still receives an active close after that bounded grace
+period. TCP's 1500 ms `TIME_WAIT` protection remains enabled for active closes.
 
 - `GET /sensors`: 200 with a JSON array of all stored readings, including stale
   entries. Fields: `node_id`, `light`, `temp_c`, `accel`, `last_seen_ms`.
@@ -148,8 +174,20 @@ Other methods on a known route return 405 with `Allow`; unknown exact paths
 return 404. Query strings are not matched. Malformed requests return 400;
 requests exceeding 2048 bytes return 413. Paths must fit 31 bytes.
 Each request has a ten-second reception deadline and sends use a five-second
-timeout. One slow client can occupy the only HTTP slot, but cannot block radio RX.
+timeout. While the primary request is incomplete, main also polls the listener.
+An extra accepted connection is rejected with HTTP 500, `{"error":"busy"}` and
+`Connection: close`, with a 250 ms send timeout and the bounded peer-close grace.
+This is best-effort admission shedding, not another normal client slot: full
+TCP/context/registration pools can reject a connection before HTTP is possible.
+The listener is not polled while main is sending a normal response or waiting
+for its peer to close. Radio RX remains on its separate thread.
 Request bodies are parsed and discarded; these routes need no body.
+
+Each completely parsed request emits an info-level serial log through the existing
+gateway logger, for example `gateway: http: GET /health`. This includes complete
+requests that later receive 404 or 405, but not incomplete or malformed requests.
+It adds no static RAM, thread, or queue; deferred log records share the existing
+512-byte log buffer. A logged request is not proof that its response was delivered.
 
 `CONFIG_NET_CONTEXT_SNDTIMEO=y` is required for `SO_SNDTIMEO` on Zephyr's
 native sockets. Without it, timeout setup fails with `ENOPROTOOPT` and the
