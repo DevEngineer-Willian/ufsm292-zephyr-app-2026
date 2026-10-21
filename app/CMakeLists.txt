@@ -9,6 +9,8 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(app LANGUAGES C)
 
+zephyr_include_directories(../include)
+
 target_sources(app PRIVATE 
     src/main.c
     ../lib/radio/sensor_frame.c

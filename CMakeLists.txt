@@ -1,17 +1,18 @@
 # Copyright (c) 2021 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
-#
-# This CMake file is picked by the Zephyr build system because it is defined
-# as the module CMake entry point (see zephyr/module.yml).
+
+cmake_minimum_required(VERSION 3.28.0)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(ufsm292-zephyr-app-2026)
+project(ufsm292_zephyr_app_2026)
 
-# This is needed so that custom driver classes using system calls are taken into
-# account
+# Fontes principais da aplicação (ajuste o caminho se seu main.c estiver em outro diretório)
+target_sources(app PRIVATE src/main.c)
+
+# Inclusões e diretórios de chamadas de sistema
 zephyr_syscall_include_directories(include)
-
 zephyr_include_directories(include)
 
+# Subdiretórios do projeto
 add_subdirectory(drivers)
 add_subdirectory(lib)

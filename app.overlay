@@ -22,6 +22,10 @@
         reg = <0>;
         spi-max-frequency = <10000000>;
         int-gpios = <&porta 17 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        
+        /* Endereço MAC obrigatório de 6 bytes */
+        local-mac-address = [00 04 A3 12 34 56];
+        
         status = "okay";
     };
 };
