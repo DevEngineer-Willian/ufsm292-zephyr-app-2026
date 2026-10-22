@@ -1,0 +1,12 @@
+menu "Servidor (grupo C)"
+
+config SERVIDOR_HTTP_PORTA
+	int "Porta HTTP do servidor"
+	default 5501
+	help
+	  Porta em que o supervisor (grupo D) consulta /health, /data e /log.
+	  5501 é a porta que o supervisor já usa para o servidor.
+
+endmenu
+
+source "Kconfig.zephyr"

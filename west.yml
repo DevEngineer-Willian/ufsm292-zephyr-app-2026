@@ -13,6 +13,7 @@ manifest:
       import:
         name-allowlist:
           - cmsis_6
+          - fatfs
           - hal_atmel
           - hal_nordic
           - hal_stm32
