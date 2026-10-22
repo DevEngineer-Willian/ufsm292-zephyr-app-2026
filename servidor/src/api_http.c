@@ -6,10 +6,12 @@
 
 #include "api_http.h"
 #include "armazenamento.h"
+#include "tabela.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/sys/printk.h>
+#include <zephyr/sys/reboot.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +30,8 @@ static struct k_thread thread_http;
 /* Só a primeira linha importa ("GET /health HTTP/1.1"); o resto é descartado */
 static char req[128];
 static char cabecalho[160];
+/* Corpo de qualquer resposta; o maior é o /data com 4 nós (~450 B) */
+static char corpo[512];
 
 /* Lê a requisição até a linha em branco que fecha os cabeçalhos */
 static size_t ler_requisicao(int sock)
@@ -74,9 +78,9 @@ static void enviar(int sock, const char *buf, size_t tam)
 	}
 }
 
-static void responder(int sock, int codigo, const char *motivo, const char *corpo)
+static void responder(int sock, int codigo, const char *motivo, const char *texto)
 {
-	size_t tam_corpo = strlen(corpo);
+	size_t tam_corpo = strlen(texto);
 	int n = snprintf(cabecalho, sizeof(cabecalho),
 			 "HTTP/1.1 %d %s\r\n"
 			 "Content-Type: application/json\r\n"
@@ -85,7 +89,7 @@ static void responder(int sock, int codigo, const char *motivo, const char *corp
 			 codigo, motivo, (uint32_t)tam_corpo);
 
 	enviar(sock, cabecalho, n);
-	enviar(sock, corpo, tam_corpo);
+	enviar(sock, texto, tam_corpo);
 }
 
 /* A requisição é "<metodo> <caminho>[?query] HTTP/1.1"? */
@@ -103,28 +107,47 @@ static bool rota(const char *metodo, const char *caminho)
 	return fim == ' ' || fim == '?';
 }
 
-static void get_health(int sock)
+static int get_health(int sock)
 {
-	char corpo[96];
-
 	/* "degraded": no ar, mas sem SD as leituras não estão sendo gravadas */
 	snprintf(corpo, sizeof(corpo),
 		 "{\"status\":\"%s\",\"uptime_ms\":%u,\"nodes_online\":%d}",
 		 armazenamento_ok() ? "ok" : "degraded",
-		 (uint32_t)k_uptime_get(), 0);
+		 (uint32_t)k_uptime_get(), tabela_nos_online());
 	responder(sock, 200, "OK", corpo);
+	return 200;
 }
 
-static void atender(int sock)
+static int get_data(int sock)
 {
-	int codigo = 200;
+	if (tabela_json(corpo, sizeof(corpo)) < 0) {
+		responder(sock, 500, "Internal Server Error",
+			  "{\"erro\":\"resposta maior que o buffer\"}");
+		return 500;
+	}
+	responder(sock, 200, "OK", corpo);
+	return 200;
+}
+
+/* Retorna true se a requisição pediu para reiniciar a placa */
+static bool atender(int sock)
+{
+	bool reiniciar = false;
+	int codigo;
 
 	if (ler_requisicao(sock) == 0) {
-		return;
+		return false;
 	}
 
 	if (rota("GET", "/health")) {
-		get_health(sock);
+		codigo = get_health(sock);
+	} else if (rota("GET", "/data")) {
+		codigo = get_data(sock);
+	} else if (rota("POST", "/reset")) {
+		/* Responde antes: o supervisor precisa saber que o pedido chegou */
+		codigo = 200;
+		responder(sock, 200, "OK", "{\"status\":\"reiniciando\"}");
+		reiniciar = true;
 	} else {
 		codigo = 404;
 		responder(sock, 404, "Not Found", "{\"erro\":\"rota desconhecida\"}");
@@ -132,6 +155,19 @@ static void atender(int sock)
 
 	/* Mostra só a primeira linha da requisição */
 	printk("HTTP: %.*s -> %d\r\n", (int)strcspn(req, "\r\n"), req, codigo);
+	return reiniciar;
+}
+
+static void reiniciar_placa(void)
+{
+	printk("HTTP: reset pedido, reiniciando\r\n");
+
+	/* Não deixa o reboot cortar uma linha do CSV no meio */
+	armazenamento_finalizar();
+
+	/* Tempo para o TCP entregar a resposta e o FIN ao supervisor */
+	k_sleep(K_MSEC(200));
+	sys_reboot(SYS_REBOOT_COLD);
 }
 
 static void servidor_http(void *p1, void *p2, void *p3)
@@ -166,6 +202,7 @@ static void servidor_http(void *p1, void *p2, void *p3)
 
 	for (;;) {
 		int cliente = zsock_accept(escuta, NULL, NULL);
+		bool reiniciar;
 
 		if (cliente < 0) {
 			k_sleep(K_MSEC(100));
@@ -175,8 +212,12 @@ static void servidor_http(void *p1, void *p2, void *p3)
 		/* Cliente que conecta e não manda nada não trava o servidor */
 		zsock_setsockopt(cliente, ZSOCK_SOL_SOCKET, ZSOCK_SO_RCVTIMEO,
 				 &tv, sizeof(tv));
-		atender(cliente);
+		reiniciar = atender(cliente);
 		zsock_close(cliente);
+
+		if (reiniciar) {
+			reiniciar_placa();
+		}
 	}
 }
 

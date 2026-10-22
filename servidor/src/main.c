@@ -3,6 +3,7 @@
 
 #include "api_http.h"
 #include "armazenamento.h"
+#include "coletor.h"
 #include "rede.h"
 #include "relogio.h"
 
@@ -47,32 +48,15 @@ int main(void)
 		printk("Rede: ainda sem IP, confira o cabo\r\n");
 	}
 
-	/*
-	 * TEMPORARIO: leituras fictícias no lugar do coletor, que vai buscar
-	 * as leituras reais no GET /sensors do gateway.
-	 */
-	for (uint32_t i = 0;; i++) {
-		struct leitura l = {
-			.node_id = 1 + (i % 3),
-			.light = 300 + (i % 50),
-			.temp_c = 24.5f + 0.1f * (i % 10),
-			.accel = { 0.01f, 0.02f, 9.8f },
-			.last_seen_ms = (uint32_t)k_uptime_get() - 100,
-		};
-		char data_hora[20];
-		int ret;
+	printk("Coletor: gateway em %s:%d, a cada %d ms\r\n",
+	       CONFIG_SERVIDOR_GATEWAY_ADDR, CONFIG_SERVIDOR_GATEWAY_PORTA,
+	       CONFIG_SERVIDOR_COLETA_MS);
 
+	/* O coletor roda aqui no main, sem thread própria: economiza RAM */
+	for (;;) {
 		manter_relogio();
-
-		ret = armazenamento_gravar(&l);
-		if (ret < 0) {
-			printk("SD: falha ao gravar (%d)\r\n", ret);
-		} else {
-			relogio_agora(data_hora, sizeof(data_hora));
-			printk("SD: leitura do no %d gravada %s\r\n", l.node_id,
-			       data_hora);
-		}
-		k_sleep(K_SECONDS(5));
+		coletor_consultar();
+		k_sleep(K_MSEC(CONFIG_SERVIDOR_COLETA_MS));
 	}
 
 	return 0;
