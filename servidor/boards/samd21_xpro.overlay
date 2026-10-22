@@ -1,0 +1,100 @@
+/*
+ * SAM D21 Xplained Pro com:
+ *   - IO1 Xplained Pro (microSD) no EXT1, SPI no SERCOM0
+ *   - Ethernet1 Xplained Pro (KSZ8851SNL) no EXT3, SPI no SERCOM5
+ *
+ * EXT1 (IO1):
+ *   PA05 -> SD CS
+ *   PA06 -> MOSI  (SERCOM0 PAD2)
+ *   PA04 -> MISO  (SERCOM0 PAD0)
+ *   PA07 -> SCK   (SERCOM0 PAD3)
+ *
+ * EXT3 (Ethernet1):
+ *   PB17 -> CS
+ *   PB22 -> MOSI
+ *   PB16 -> MISO
+ *   PB23 -> SCK
+ *   PA28 -> INTRN
+ *   PA15 -> nRST
+ */
+
+&pinctrl {
+	sercom0_spi_ext1: sercom0_spi_ext1 {
+		group1 {
+			pinmux = <PA4D_SERCOM0_PAD0>,
+				 <PA6D_SERCOM0_PAD2>,
+				 <PA7D_SERCOM0_PAD3>;
+		};
+	};
+
+	sercom5_spi_ext3: sercom5_spi_ext3 {
+		group1 {
+			pinmux = <PB16C_SERCOM5_PAD0>,
+				 <PB22D_SERCOM5_PAD2>,
+				 <PB23D_SERCOM5_PAD3>;
+		};
+	};
+};
+
+/* PB30 e PA15 são compartilhados com dispositivos da placa. */
+/delete-node/ &pwm_led0;
+/delete-node/ &led0;
+/delete-node/ &user_button;
+
+/ {
+	aliases {
+		/delete-property/ led0;
+		/delete-property/ pwm-led0;
+		/delete-property/ sw0;
+	};
+};
+
+&tcc0 {
+	status = "disabled";
+};
+
+/* Na placa o SERCOM0 vem declarado como UART; aqui vira o SPI do EXT1 */
+&sercom0 {
+	compatible = "atmel,sam0-spi";
+	/delete-property/ current-speed;
+	/delete-property/ rxpo;
+	/delete-property/ txpo;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	dipo = <0>;
+	dopo = <1>;
+	pinctrl-0 = <&sercom0_spi_ext1>;
+	cs-gpios = <&porta 5 GPIO_ACTIVE_LOW>;
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		spi-max-frequency = <8000000>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};
+
+&sercom5 {
+	status = "okay";
+	dipo = <0>;
+	dopo = <1>;
+	pinctrl-0 = <&sercom5_spi_ext3>;
+	cs-gpios = <&portb 17 GPIO_ACTIVE_LOW>,
+		   <&porta 13 GPIO_ACTIVE_LOW>;
+
+	eth: ksz8851snl@0 {
+		compatible = "microchip,ksz8851snl";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		int-gpios = <&porta 28 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&porta 15 GPIO_ACTIVE_LOW>;
+		local-mac-address = [02 00 00 00 00 0c];
+	};
+};
