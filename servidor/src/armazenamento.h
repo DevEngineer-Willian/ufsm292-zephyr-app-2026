@@ -14,4 +14,7 @@ bool armazenamento_ok(void);
 /* Acrescenta uma linha ao CSV, com o instante em que o servidor a recebeu */
 int armazenamento_gravar(const struct leitura *l);
 
+/* Desmonta o SD com segurança antes de reiniciar; não grava mais depois */
+void armazenamento_finalizar(void);
+
 #endif

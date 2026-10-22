@@ -82,6 +82,16 @@ bool armazenamento_ok(void)
 	return montado;
 }
 
+void armazenamento_finalizar(void)
+{
+	/* Espera qualquer gravação em andamento e não solta mais a trava */
+	k_mutex_lock(&trava_sd, K_FOREVER);
+	if (montado) {
+		fs_unmount(&montagem);
+		montado = false;
+	}
+}
+
 int armazenamento_gravar(const struct leitura *l)
 {
 	char linha[128];
@@ -94,11 +104,10 @@ int armazenamento_gravar(const struct leitura *l)
 	}
 
 	relogio_agora(data_hora, sizeof(data_hora));
-	n = snprintf(linha, sizeof(linha), "%s,%u,%d,%d,%.2f,%.3f,%.3f,%.3f,%u\n",
+	n = snprintf(linha, sizeof(linha), "%s,%u,%u,%u," TEMP_FMT ",%d,%d,%d,%u\n",
 		     data_hora, (uint32_t)k_uptime_get(), l->node_id, l->light,
-		     (double)l->temp_c, (double)l->accel[0],
-		     (double)l->accel[1], (double)l->accel[2],
-		     l->last_seen_ms);
+		     TEMP_ARGS(l->temp_c_x100), l->accel[0], l->accel[1],
+		     l->accel[2], l->last_seen_ms);
 
 	k_mutex_lock(&trava_sd, K_FOREVER);
 	ret = escrever(linha, n);

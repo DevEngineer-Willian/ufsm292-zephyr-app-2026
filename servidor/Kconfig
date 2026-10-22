@@ -7,6 +7,31 @@ config SERVIDOR_HTTP_PORTA
 	  Porta em que o supervisor (grupo D) consulta /health, /data e /log.
 	  5501 é a porta que o supervisor já usa para o servidor.
 
+config SERVIDOR_GATEWAY_ADDR
+	string "IPv4 do gateway"
+	default "192.168.100.20"
+	help
+	  O padrão é o notebook rodando o simulador (servidor/sim). Na
+	  integração, trocar pelo IP da placa do gateway (grupo B).
+
+config SERVIDOR_GATEWAY_PORTA
+	int "Porta HTTP do gateway"
+	default 5500
+	help
+	  5500 = simulador (servidor/sim). O gateway real usa a porta 80
+	  (CONFIG_GATEWAY_HTTP_PORT em gateway/Kconfig).
+
+config SERVIDOR_COLETA_MS
+	int "Período de consulta ao gateway (ms)"
+	default 5000
+
+config SERVIDOR_NO_ONLINE_MS
+	int "Tempo máximo sem leitura para um nó contar como online (ms)"
+	default 30000
+	help
+	  Usado no nodes_online do /health. Um nó que não manda leitura há
+	  mais tempo que isso conta como offline.
+
 endmenu
 
 source "Kconfig.zephyr"

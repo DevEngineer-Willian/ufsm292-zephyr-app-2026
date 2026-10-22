@@ -10,4 +10,7 @@ target_sources(app PRIVATE
 	src/armazenamento.c
 	src/relogio.c
 	src/api_http.c
+	src/tabela.c
+	src/http_cliente.c
+	src/coletor.c
 )
