@@ -1,0 +1,341 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <setjmp.h>
+
+#define BIT(n) (1U << (n))
+#define ROUND_UP(x, a) (((x) + (a) - 1) & ~((a) - 1))
+/* DRIVER_CONSTANTS */
+#define ARG_UNUSED(x) ((void)(x))
+#define NET_AF_UNSPEC 0
+#define K_FOREVER 0
+#define K_MSEC(x) (x)
+#define LOG_WRN(...) ((void)0)
+#define LOG_INF(...) ((void)0)
+#define LOG_HEXDUMP_INF(...) ((void)0)
+#define LOG_ERR(...) ((void)0)
+
+struct k_mutex { int unused; };
+struct k_sem { unsigned int gives; };
+struct net_if { unsigned int rx, tx, drops; };
+struct net_pkt { size_t len; uint8_t bytes[KS_FRAME_MAX]; };
+struct ksz_data {
+	struct net_if *iface;
+	struct k_mutex lock, tx_lock;
+	struct k_sem event;
+	uint8_t mac[6], frame[KS_FRAME_MAX];
+	uint8_t fid;
+	bool started, recovery_pending, rx_prefix_logged, rx_drop_logged;
+};
+struct device { struct ksz_data *data; };
+static struct {
+	uint16_t rxfhsr, rxfhbcr, rxfctr, isr, txqcr, txsr, txmir;
+	uint32_t rx_drops, tx_timeouts;
+	int last_errno;
+} ksz_debug;
+static struct {
+	uint16_t r[256];
+	unsigned int fifo_reads, fifo_writes, dma_starts, resets;
+	bool fail_header_once, fail_recovery_once, fail_exit_once;
+	bool release_stuck, tx_stuck;
+	uint8_t rxbytes[KS_FRAME_MAX], txbytes[KS_TX_MAX_FRAME];
+	size_t txlen;
+} hw;
+static struct ksz_data data;
+static struct device dev = { .data = &data };
+static struct net_if iface;
+static int64_t now_ms;
+static jmp_buf worker_done;
+static unsigned int sem_calls, stop_after_sem;
+
+static int rx_drain(const struct device *dev);
+static int recover(const struct device *dev);
+static int send(const struct device *dev, struct net_pkt *pkt);
+static void worker(void *a, void *b, void *c);
+
+static int k_sem_take(struct k_sem *s, int timeout)
+{
+	ARG_UNUSED(s);
+	ARG_UNUSED(timeout);
+	if (++sem_calls >= stop_after_sem) {
+		longjmp(worker_done, 1);
+	}
+	return 0;
+}
+static void k_mutex_lock(struct k_mutex *m, int t) { ARG_UNUSED(m); ARG_UNUSED(t); }
+static void k_mutex_unlock(struct k_mutex *m) { ARG_UNUSED(m); }
+static void k_sem_give(struct k_sem *s) { s->gives++; }
+static int64_t k_uptime_get(void) { return now_ms; }
+static void k_msleep(int ms) { now_ms += ms; }
+static void debug_note(int err) { ksz_debug.last_errno = err; }
+static int update_link_locked(const struct device *d) { ARG_UNUSED(d); return 0; }
+static void eth_stats_update_errors_rx(struct net_if *i) { i->drops++; }
+static void eth_stats_update_bytes_rx(struct net_if *i, size_t n)
+{
+	ARG_UNUSED(i); ARG_UNUSED(n);
+}
+static void eth_stats_update_bytes_tx(struct net_if *i, size_t n)
+{
+	ARG_UNUSED(i); ARG_UNUSED(n);
+}
+static void eth_stats_update_pkts_rx(struct net_if *i) { i->rx++; }
+static void eth_stats_update_pkts_tx(struct net_if *i) { i->tx++; }
+static struct net_pkt *net_pkt_rx_alloc_with_buffer(struct net_if *i, size_t n,
+						 int af, int p, int t)
+{
+	ARG_UNUSED(i); ARG_UNUSED(af); ARG_UNUSED(p); ARG_UNUSED(t);
+	struct net_pkt *pkt = calloc(1, sizeof(*pkt));
+
+	assert(pkt != NULL);
+	pkt->len = n;
+	return pkt;
+}
+static size_t net_pkt_get_len(struct net_pkt *pkt) { return pkt->len; }
+static int net_pkt_read(struct net_pkt *pkt, void *buf, size_t n)
+{
+	assert(n == pkt->len);
+	memcpy(buf, pkt->bytes, n);
+	return 0;
+}
+static int net_pkt_write(struct net_pkt *pkt, const void *buf, size_t n)
+{
+	assert(n == pkt->len);
+	memcpy(pkt->bytes, buf, n);
+	return 0;
+}
+static void net_pkt_unref(struct net_pkt *pkt) { free(pkt); }
+static int net_recv_data(struct net_if *i, struct net_pkt *pkt)
+{
+	ARG_UNUSED(i);
+	assert(pkt->len == 60);
+	for (size_t n = 0; n < pkt->len; n++) {
+		assert(pkt->bytes[n] == (uint8_t)(n + 1));
+	}
+	net_pkt_unref(pkt);
+	return 0;
+}
+static int force_pm_normal_locked(const struct device *d) { ARG_UNUSED(d); return 0; }
+static int write_mac_locked(const struct device *d, const uint8_t mac[6])
+{
+	ARG_UNUSED(d);
+	memcpy(&hw.r[KS_MARL], mac, 6);
+	return 0;
+}
+static int read_mac_locked(const struct device *d, uint8_t mac[6])
+{
+	ARG_UNUSED(d);
+	memcpy(mac, &hw.r[KS_MARL], 6);
+	return 0;
+}
+static int reg_read(const struct device *d, uint8_t reg, uint16_t *value)
+{
+	ARG_UNUSED(d);
+	/* Registers other than RXQCR are inaccessible during DMA. */
+	assert(reg == KS_RXQCR || (hw.r[KS_RXQCR] & RXQCR_SDA) == 0);
+	if (reg == KS_RXFHBCR && hw.fail_header_once) {
+		hw.fail_header_once = false;
+		return -EIO;
+	}
+	*value = hw.r[reg];
+	if (reg == KS_RXQCR && !hw.release_stuck) {
+		hw.r[reg] &= (uint16_t)~RXQCR_RRXEF;
+		*value = hw.r[reg];
+	}
+	if (reg == KS_TXQCR && !hw.tx_stuck) {
+		hw.r[reg] &= (uint16_t)~TXQCR_METFE;
+		*value = hw.r[reg];
+	}
+	return 0;
+}
+static int reg_write(const struct device *d, uint8_t reg, uint16_t value)
+{
+	ARG_UNUSED(d);
+	assert(reg == KS_RXQCR || (hw.r[KS_RXQCR] & RXQCR_SDA) == 0);
+	if (reg == KS_RXQCR && value == RXQCR_BASE &&
+	    (hw.r[reg] & RXQCR_SDA) != 0 && hw.fail_exit_once) {
+		hw.fail_exit_once = false;
+		return -EIO;
+	}
+	if (reg == KS_RXCR2 && hw.fail_recovery_once) {
+		hw.fail_recovery_once = false;
+		return -EIO;
+	}
+	if (reg == KS_RXQCR && (value & RXQCR_SDA) != 0) {
+		hw.dma_starts++;
+		assert(!data.recovery_pending);
+	}
+	if (reg == KS_GRR && value == GRR_QMU) {
+		hw.resets++;
+		hw.release_stuck = false;
+		hw.tx_stuck = false;
+		hw.r[KS_RXFCTR] = 0;
+		hw.r[KS_RXQCR] = 0;
+		hw.r[KS_TXQCR] = 0;
+	}
+	if (reg == KS_ISR) {
+		hw.r[reg] &= (uint16_t)~value;
+	} else {
+		hw.r[reg] = value;
+	}
+	return 0;
+}
+static int fifo_read(const struct device *d, uint8_t *dst, size_t n)
+{
+	ARG_UNUSED(d);
+	assert((hw.r[KS_RXQCR] & RXQCR_SDA) != 0);
+	assert(n <= sizeof(hw.rxbytes));
+	hw.fifo_reads++;
+	memcpy(dst, hw.rxbytes, n);
+	return 0;
+}
+static int fifo_write(const struct device *d, const uint8_t *src, size_t n)
+{
+	ARG_UNUSED(d);
+	assert((hw.r[KS_RXQCR] & RXQCR_SDA) != 0);
+	assert(n <= sizeof(hw.txbytes));
+	hw.fifo_writes++;
+	hw.txlen = n;
+	memcpy(hw.txbytes, src, n);
+	return 0;
+}
+static void queue_frame(uint16_t status, uint16_t len)
+{
+	hw.r[KS_RXFCTR] = 1U << 8;
+	hw.r[KS_RXFHSR] = status;
+	hw.r[KS_RXFHBCR] = len;
+}
+static void reset_fake(void)
+{
+	memset(&hw, 0, sizeof(hw));
+	memset(&ksz_debug, 0, sizeof(ksz_debug));
+	memset(&data, 0, sizeof(data));
+	memset(&iface, 0, sizeof(iface));
+	now_ms = 0;
+	data.iface = &iface;
+	data.started = true;
+	data.mac[0] = 2;
+	hw.r[KS_CIDER] = KS_CIDER_ID;
+	hw.r[KS_TXMIR] = 6144;
+	queue_frame(RXFSHR_RXFV, 64);
+	for (size_t i = 0; i < 60; i++) {
+		hw.rxbytes[KS_RX_PREFIX + i] = (uint8_t)(i + 1);
+	}
+}
+static void run_worker(unsigned int iterations)
+{
+	sem_calls = 0;
+	stop_after_sem = iterations + 1;
+	if (setjmp(worker_done) == 0) {
+		worker(&dev, NULL, NULL);
+	}
+}
+static struct net_pkt tx_packet(void)
+{
+	struct net_pkt pkt = { .len = 60 };
+
+	for (size_t i = 0; i < pkt.len; i++) {
+		pkt.bytes[i] = (uint8_t)(0xa0 + i);
+	}
+	return pkt;
+}
+static void prove_traffic(void)
+{
+	queue_frame(RXFSHR_RXFV, 64);
+	assert(rx_drain(&dev) == 0);
+	assert(iface.rx == 1);
+	struct net_pkt pkt = tx_packet();
+
+	assert(send(&dev, &pkt) == 0);
+	assert(iface.tx == 1);
+	assert(hw.txlen == pkt.len);
+	assert(memcmp(hw.txbytes, pkt.bytes, pkt.len) == 0);
+}
+int main(void)
+{
+	reset_fake();
+	queue_frame(0xffff, 0xffff);
+	hw.r[KS_ISR] = IRQ_RXI;
+	run_worker(2);
+	assert(hw.dma_starts == 0 && hw.resets == 1 && !data.recovery_pending);
+	prove_traffic();
+	puts("PASS: all-ones RX header recovers before DMA; RX/TX resume");
+
+	reset_fake();
+	hw.fail_header_once = true;
+	hw.r[KS_ISR] = IRQ_RXI;
+	run_worker(2);
+	assert(hw.resets == 1 && !data.recovery_pending && hw.fifo_reads == 0);
+	prove_traffic();
+	puts("PASS: partial header failure recovers with no further RX IRQ");
+
+	reset_fake();
+	hw.release_stuck = true;
+	assert(rx_drain(&dev) == -ETIMEDOUT && data.recovery_pending);
+	struct net_pkt pkt = tx_packet();
+	unsigned int dma = hw.dma_starts;
+
+	assert(send(&dev, &pkt) == -EIO && hw.dma_starts == dma);
+	assert(recover(&dev) == 0 && !data.recovery_pending);
+	prove_traffic();
+	puts("PASS: stuck release blocks TX until reset; RX/TX resume");
+
+	reset_fake();
+	data.recovery_pending = true;
+	hw.fail_recovery_once = true;
+	assert(recover(&dev) == -EIO && data.recovery_pending);
+	assert(send(&dev, &pkt) == -EIO && hw.dma_starts == 0);
+	run_worker(1);
+	assert(!data.recovery_pending && hw.resets == 2);
+	prove_traffic();
+	puts("PASS: failed recovery keeps TX gated and worker retries successfully");
+
+	reset_fake();
+	hw.fail_exit_once = true;
+	assert(send(&dev, &pkt) == -EIO && data.recovery_pending);
+	assert((hw.r[KS_RXQCR] & RXQCR_SDA) != 0);
+	dma = hw.dma_starts;
+	assert(send(&dev, &pkt) == -EIO && hw.dma_starts == dma);
+	run_worker(1);
+	assert(!data.recovery_pending && hw.resets == 1);
+	prove_traffic();
+	puts("PASS: failed DMA exit is cleared before reset and traffic resumes");
+
+	reset_fake();
+	hw.tx_stuck = true;
+	assert(send(&dev, &pkt) == -ETIMEDOUT && data.recovery_pending);
+	run_worker(1);
+	assert(!data.recovery_pending);
+	prove_traffic();
+	puts("PASS: TX enqueue timeout triggers recovery");
+
+	const uint16_t faults[] = { IRQ_RXPSI, IRQ_RXOI, IRQ_SPIBEI, 0xffff };
+
+	for (size_t i = 0; i < sizeof(faults) / sizeof(faults[0]); i++) {
+		reset_fake();
+		hw.r[KS_ISR] = faults[i];
+		run_worker(2);
+		assert(hw.resets == 1 && !data.recovery_pending);
+		prove_traffic();
+	}
+	puts("PASS: stopped RX, overrun, SPI bus error and all-ones ISR recover");
+
+	reset_fake();
+	queue_frame(0x92fd, 208);
+	assert(rx_drain(&dev) == 0 && iface.drops == 1 && hw.resets == 0);
+	assert(!data.recovery_pending);
+	prove_traffic();
+	puts("PASS: reported 0x92fd/208 bad frame drops normally; traffic continues");
+
+	reset_fake();
+	data.started = false;
+	data.recovery_pending = true;
+	run_worker(1);
+	assert(hw.resets == 0 && send(&dev, &pkt) == -EIO);
+	puts("PASS: administratively stopped interface is not restarted");
+	return 0;
+}
