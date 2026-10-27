@@ -8,7 +8,6 @@
 #include <zephyr/drivers/gpio.h>
 #include <datalogger/datalogger.h>
 
-/* Resolução dos nós via DT_PATH para o overlay da SAMD21 */
 #define SW0_NODE  DT_PATH(example_sensor)
 #define LED0_NODE DT_PATH(blink_led)
 
@@ -20,58 +19,62 @@ static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW0_NODE, input_gp
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET_OR(LED0_NODE, led_gpios, {0});
 #endif
 
+static datalogger_ring_buf_t logger_buffer;
+
 int main(void)
 {
-    printk("=== SAMD21 DataLogger Hardware Integration ===\n");
+    printk("=== SAMD21 DataLogger with Ring Buffer ===\n");
 
-    datalogger_init();
+    datalogger_buf_init(&logger_buffer);
 
-    /* Configuração do pino de entrada (IO1) */
     #if DT_NODE_EXISTS(SW0_NODE)
     if (button.port && device_is_ready(button.port)) {
         gpio_pin_configure_dt(&button, GPIO_INPUT);
-        printk("[GPIO] Sensor IO1 (PA11) inicializado.\n");
+        printk("[GPIO] Sensor IO1 (PA11) pronto.\n");
     }
     #endif
 
-    /* Configuração do pino de saída (LED Status) */
     #if DT_NODE_EXISTS(LED0_NODE)
     if (led.port && device_is_ready(led.port)) {
         gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
-        printk("[GPIO] LED Status (PB30) inicializado.\n");
+        printk("[GPIO] LED Status (PB30) pronto.\n");
     }
     #endif
 
-    datalogger_entry_t sample;
+    datalogger_entry_t new_sample;
+    datalogger_entry_t pop_sample;
     char json_buf[128];
 
     while (1) {
-        sample.timestamp_ms = k_uptime_get_32();
+        new_sample.timestamp_ms = k_uptime_get_32();
 
-        /* Leitura real do pino digital IO1 */
         #if DT_NODE_EXISTS(SW0_NODE)
         if (button.port && device_is_ready(button.port)) {
-            sample.digital_state = (bool)gpio_pin_get_dt(&button);
-            sample.raw_io_val = sample.digital_state ? 1023 : 0;
+            new_sample.digital_state = (bool)gpio_pin_get_dt(&button);
+            new_sample.raw_io_val = new_sample.digital_state ? 1023 : 0;
         } else
         #endif
         {
-            /* Fallback de simulação caso o pino não esteja acessível */
-            sample.digital_state = !sample.digital_state;
-            sample.raw_io_val = (sample.raw_io_val + 50) % 1024;
+            new_sample.digital_state = !new_sample.digital_state;
+            new_sample.raw_io_val = (new_sample.raw_io_val + 50) % 1024;
         }
 
-        /* Alterna o estado do LED a cada leitura */
+        /* 1. Armazena a leitura no Ring Buffer */
+        datalogger_buf_push(&logger_buffer, &new_sample);
+
         #if DT_NODE_EXISTS(LED0_NODE)
         if (led.port && device_is_ready(led.port)) {
             gpio_pin_toggle_dt(&led);
         }
         #endif
 
-        if (datalogger_format_json(&sample, json_buf, sizeof(json_buf)) == 0) {
-            printk("[DataLogger] HW JSON: %s\n", json_buf);
-        } else {
-            printk("[DataLogger] Erro ao formatar payload!\n");
+        /* 2. Processa/Despacha do Ring Buffer para a saida JSON/Ethernet */
+        if (datalogger_buf_pop(&logger_buffer, &pop_sample) == 0) {
+            if (datalogger_format_json(&pop_sample, json_buf, sizeof(json_buf)) == 0) {
+                printk("[DataLogger RingBuf (%u in queue)] %s\n",
+                       (unsigned int)datalogger_buf_count(&logger_buffer),
+                       json_buf);
+            }
         }
 
         k_sleep(K_MSEC(2000));

@@ -6,19 +6,50 @@
 #include <stdio.h>
 #include <string.h>
 
-#if __has_include(<cJSON.h>)
-  #include <cJSON.h>
-  #define HAS_CJSON 1
-#elif __has_include(<cjson/cJSON.h>)
-  #include <cjson/cJSON.h>
-  #define HAS_CJSON 1
-#else
-  #define HAS_CJSON 0
-#endif
-
-int datalogger_init(void)
+void datalogger_buf_init(datalogger_ring_buf_t *ring)
 {
+    if (!ring) return;
+    ring->head = 0;
+    ring->tail = 0;
+    ring->count = 0;
+}
+
+int datalogger_buf_push(datalogger_ring_buf_t *ring, const datalogger_entry_t *entry)
+{
+    if (!ring || !entry) {
+        return -1;
+    }
+
+    /* Insere na posicao head */
+    ring->entries[ring->head] = *entry;
+    ring->head = (ring->head + 1) % DATALOGGER_BUFFER_CAPACITY;
+
+    if (ring->count < DATALOGGER_BUFFER_CAPACITY) {
+        ring->count++;
+    } else {
+        /* Buffer cheio: avanca o tail (sobrescreve o item mais antigo) */
+        ring->tail = (ring->tail + 1) % DATALOGGER_BUFFER_CAPACITY;
+    }
+
     return 0;
+}
+
+int datalogger_buf_pop(datalogger_ring_buf_t *ring, datalogger_entry_t *out_entry)
+{
+    if (!ring || !out_entry || ring->count == 0) {
+        return -1;
+    }
+
+    *out_entry = ring->entries[ring->tail];
+    ring->tail = (ring->tail + 1) % DATALOGGER_BUFFER_CAPACITY;
+    ring->count--;
+
+    return 0;
+}
+
+size_t datalogger_buf_count(const datalogger_ring_buf_t *ring)
+{
+    return ring ? ring->count : 0;
 }
 
 int datalogger_format_json(const datalogger_entry_t *entry, char *out_buf, size_t buf_len)
@@ -27,35 +58,6 @@ int datalogger_format_json(const datalogger_entry_t *entry, char *out_buf, size_
         return -1;
     }
 
-#if HAS_CJSON
-    cJSON *root = cJSON_CreateObject();
-    if (!root) {
-        return -1;
-    }
-
-    cJSON_AddNumberToObject(root, "ts", entry->timestamp_ms);
-    cJSON_AddNumberToObject(root, "io_val", entry->raw_io_val);
-    cJSON_AddBoolToObject(root, "state", entry->digital_state);
-
-    char *rendered = cJSON_PrintUnformatted(root);
-    if (!rendered) {
-        cJSON_Delete(root);
-        return -1;
-    }
-
-    if (strlen(rendered) >= buf_len) {
-        cJSON_free(rendered);
-        cJSON_Delete(root);
-        return -1;
-    }
-
-    strncpy(out_buf, rendered, buf_len);
-    cJSON_free(rendered);
-    cJSON_Delete(root);
-    return 0;
-
-#else
-    /* Fallback nativo e determinístico para JSON em sistemas embarcados */
     int ret = snprintf(out_buf, buf_len,
                        "{\"ts\":%u,\"io_val\":%d,\"state\":%s}",
                        (unsigned int)entry->timestamp_ms,
@@ -67,5 +69,4 @@ int datalogger_format_json(const datalogger_entry_t *entry, char *out_buf, size_
     }
 
     return 0;
-#endif
 }

@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
- * Module: DataLogger for SAMD21 + Ethernet/IO
+ * Module: DataLogger Ring Buffer (RAM/NVS)
  */
 
 #ifndef DATALOGGER_H_
@@ -14,28 +14,43 @@
 extern "C" {
 #endif
 
-/**
- * @brief Estrutura de leitura dos dados do registrador/sensores.
- */
+#define DATALOGGER_BUFFER_CAPACITY 16
+
 typedef struct {
-    uint32_t timestamp_ms; /**< Timestamp da leitura em milissegundos */
-    int32_t raw_io_val;     /**< Leitura bruta de entrada/saída do IO1 */
-    bool digital_state;     /**< Estado lógico de entrada do IO1 */
+    uint32_t timestamp_ms;
+    int32_t raw_io_val;
+    bool digital_state;
 } datalogger_entry_t;
 
-/**
- * @brief Inicializa o buffer/instância do DataLogger.
- * @return 0 em caso de sucesso, número negativo em erro.
- */
-int datalogger_init(void);
+typedef struct {
+    datalogger_entry_t entries[DATALOGGER_BUFFER_CAPACITY];
+    size_t head;
+    size_t tail;
+    size_t count;
+} datalogger_ring_buf_t;
 
 /**
- * @brief Formata uma entrada de dados no formato JSON para transmissão Ethernet/Serial.
- * 
- * @param entry Ponteiro para a amostra lida.
- * @param out_buf Buffer de destino para a string JSON.
- * @param buf_len Tamanho máximo do buffer de destino.
- * @return 0 em caso de sucesso, -1 se houver estouro de buffer ou dados inválidos.
+ * @brief Inicializa a estrutura do buffer circular.
+ */
+void datalogger_buf_init(datalogger_ring_buf_t *ring);
+
+/**
+ * @brief Adiciona uma nova amostra ao buffer (sobrescreve a mais antiga se cheio).
+ */
+int datalogger_buf_push(datalogger_ring_buf_t *ring, const datalogger_entry_t *entry);
+
+/**
+ * @brief Retira a amostra mais antiga do buffer.
+ */
+int datalogger_buf_pop(datalogger_ring_buf_t *ring, datalogger_entry_t *out_entry);
+
+/**
+ * @brief Retorna a quantidade de amostras armazenadas no buffer.
+ */
+size_t datalogger_buf_count(const datalogger_ring_buf_t *ring);
+
+/**
+ * @brief Formata uma entrada de dados em JSON.
  */
 int datalogger_format_json(const datalogger_entry_t *entry, char *out_buf, size_t buf_len);
 
