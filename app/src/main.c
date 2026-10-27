@@ -10,7 +10,7 @@
 #include <datalogger/datalogger.h>
 
 #define SERVER_PORT 5000
-#define SERVER_ADDR "192.168.1.100" /* Ajuste para o IP do seu servidor local */
+#define SERVER_ADDR "192.168.1.100" /* IP da sua maquina host */
 
 #define SW0_NODE  DT_PATH(example_sensor)
 #define LED0_NODE DT_PATH(blink_led)
@@ -24,15 +24,28 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET_OR(LED0_NODE, led_gpios,
 #endif
 
 static datalogger_ring_buf_t logger_buffer;
+static struct nvs_fs nvs;
 
 int main(void)
 {
     int sock;
     struct sockaddr_in server_addr;
 
-    printk("=== SAMD21 DataLogger UDP Socket ===\n");
+    printk("=== SAMD21 DataLogger (UDP + NVS Flash) ===\n");
 
     datalogger_buf_init(&logger_buffer);
+
+    /* Inicialização do NVS */
+    if (datalogger_nvs_init(&nvs) == 0) {
+        printk("[NVS] Sistema de arquivos NVS montado na Flash!\n");
+        datalogger_entry_t last_saved;
+        if (datalogger_nvs_load_entry(&nvs, &last_saved) > 0) {
+            printk("[NVS] Ultimo registro recuperado do Flash -> TS: %u, Val: %d\n",
+                   (unsigned int)last_saved.timestamp_ms, (int)last_saved.raw_io_val);
+        }
+    } else {
+        printk("[NVS] Falha ao montar o sistema NVS.\n");
+    }
 
     #if DT_NODE_EXISTS(SW0_NODE)
     if (button.port && device_is_ready(button.port)) {
@@ -50,12 +63,6 @@ int main(void)
 
     /* Configuração do Socket UDP */
     sock = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sock < 0) {
-        printk("[UDP] Erro ao criar socket: %d\n", sock);
-    } else {
-        printk("[UDP] Socket criado com sucesso.\n");
-    }
-
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(SERVER_PORT);
@@ -79,7 +86,10 @@ int main(void)
             new_sample.raw_io_val = (new_sample.raw_io_val + 50) % 1024;
         }
 
-        /* 1. Armazena a leitura no Ring Buffer */
+        /* 1. Salva a nova leitura na Flash (NVS) */
+        datalogger_nvs_save_entry(&nvs, &new_sample);
+
+        /* 2. Armazena a leitura no Ring Buffer em RAM */
         datalogger_buf_push(&logger_buffer, &new_sample);
 
         #if DT_NODE_EXISTS(LED0_NODE)
@@ -88,29 +98,19 @@ int main(void)
         }
         #endif
 
-        /* 2. Processa o buffer e envia via Socket UDP */
+        /* 3. Despacha do Ring Buffer para transmissão UDP */
         if (datalogger_buf_pop(&logger_buffer, &pop_sample) == 0) {
             if (datalogger_format_json(&pop_sample, json_buf, sizeof(json_buf)) == 0) {
                 printk("[DataLogger JSON] %s\n", json_buf);
 
                 if (sock >= 0) {
-                    int ret = zsock_sendto(sock, json_buf, strlen(json_buf), 0,
-                                           (struct sockaddr *)&server_addr,
-                                           sizeof(server_addr));
-                    if (ret < 0) {
-                        printk("[UDP] Falha no envio sendto: %d\n", ret);
-                    } else {
-                        printk("[UDP] %d bytes enviados para %s:%d\n", ret, SERVER_ADDR, SERVER_PORT);
-                    }
+                    zsock_sendto(sock, json_buf, strlen(json_buf), 0,
+                                 (struct sockaddr *)&server_addr, sizeof(server_addr));
                 }
             }
         }
 
         k_sleep(K_MSEC(2000));
-    }
-
-    if (sock >= 0) {
-        zsock_close(sock);
     }
 
     return 0;
