@@ -1,0 +1,56 @@
+/*
+ * Ethernet1 Xplained Pro (KSZ8851SNL) no EXT3 da SAM D21 Xplained Pro.
+ *
+ * EXT3:
+ *   PB17 -> CS
+ *   PB22 -> MOSI
+ *   PB16 -> MISO
+ *   PB23 -> SCK
+ *   PA28 -> INTRN
+ *   PA15 -> nRST
+ */
+
+&pinctrl {
+	sercom5_spi_ext3: sercom5_spi_ext3 {
+		group1 {
+			pinmux = <PB16C_SERCOM5_PAD0>,
+				 <PB22D_SERCOM5_PAD2>,
+				 <PB23D_SERCOM5_PAD3>;
+		};
+	};
+};
+
+/* PB30 e PA15 são compartilhados com dispositivos da placa. */
+/delete-node/ &pwm_led0;
+/delete-node/ &led0;
+/delete-node/ &user_button;
+
+/ {
+	aliases {
+		/delete-property/ led0;
+		/delete-property/ pwm-led0;
+		/delete-property/ sw0;
+	};
+};
+
+&tcc0 {
+	status = "disabled";
+};
+
+&sercom5 {
+	status = "okay";
+	dipo = <0>;
+	dopo = <1>;
+	pinctrl-0 = <&sercom5_spi_ext3>;
+	cs-gpios = <&portb 17 GPIO_ACTIVE_LOW>,
+		   <&porta 13 GPIO_ACTIVE_LOW>;
+
+	eth: ksz8851snl@0 {
+		compatible = "microchip,ksz8851snl";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		int-gpios = <&porta 28 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&porta 15 GPIO_ACTIVE_LOW>;
+		local-mac-address = [02 00 00 00 00 0c];
+	};
+};

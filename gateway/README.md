@@ -1,12 +1,10 @@
 # Gateway radio transport
 
-The gateway uses normal IEEE 802.15.4 L2 and a radio-bound `AF_PACKET` /
-`SOCK_RAW` socket, not global `IEEE802154_RAW_MODE`. The socket is bound to the
-interface belonging to `zephyr,ieee802154`, never a hard-coded interface index.
-The application no longer overrides `net_recv_data()`.
+## Recebendo pacotes do sensor
 
-`lib/radio` and its public headers are unchanged. Both directions use complete
-MAC frames without FCS:
+O gateway usa um socket `AF_PACKET` /`SOCK_RAW`, not global `IEEE802154_RAW_MODE`.
+
+Recebe frames MAC sem FCS:
 
 ```c
 /* sock is opened once with radio_socket_open(&sock, radio_iface). */
@@ -22,26 +20,10 @@ if (len > 0) {
 }
 ```
 
-The transport lives in `gateway/src/radio_socket.{c,h}`. Its calls return a
-byte count or negative errno; setup returns zero or negative errno. TX uses
-`sendto()` with an explicit radio destination interface and does not wait for
-buffer availability. A successful send means accepted by the network stack,
-not confirmed delivery over the air. It never retries a partial packet.
-Frames are limited to 125 bytes excluding the two-byte hardware FCS.
-RX rejects truncation rather than decoding a partial frame.
+O receptor existe em `gateway/src/radio_socket.{c,h}`. Chamados retornam
+contagem de bytes ou errno negativo; setup retorna zero ou errno negativo.
 
-One RX consumer and a separate TX thread may share the same socket. Blocking
-RX polls before a nonblocking receive: this avoids holding Zephyr's packet
-socket fd lock while idle, which would stall TX. Close only after both users
-stop. Initialize/open each transport once; do not reopen a live descriptor.
-
-The bring-up image still only prints received readings: no unsolicited TX has
-been added. Decode/print runs on an application thread; the socket queue uses
-the finite network packet/buffer pools. Slow console output can exhaust those
-pools and lose frames; this is not a reliable forwarding queue. RSSI/LQI are
-not exposed by this adapter.
-
-## Hardware-free validation
+## Validação em simulação
 
 ```sh
 west build -b samr21_xpro gateway -d build-gateway-socket
@@ -51,101 +33,95 @@ set -o pipefail
 build-radio-socket-test/zephyr/zephyr.exe 2>&1 | tee /tmp/ufsm292_socket_local_01.log
 ```
 
-The simulator uses real Zephyr sockets/L2 and fake radio/Ethernet devices. It
-checks codec TX bytes at the driver boundary, RX round-trip, interface isolation
-(including Ethernet exclusion), truncation, invalid input, and TX while RX waits
-on the same fd. A separate synthetic fragmented RX case bypasses IEEE802154 L2
-(which requires contiguous RX frames) to check socket copying independently.
+Durante testagem foi detectada uma falha no driver RF2xx do zephyr que pode ser
+suprimida usando `gateway/patches/rf2xx-rx-length.patch` em zephyr 4.4
 
-Validated against Zephyr 4.4.99, commit `c605ea46e15f`. The SAM R21 image builds,
-but radio startup, promiscuous reception, FCS removal and actual TX/RX still need
-hardware validation. Ethernet/IP operation is not validated by these tests.
+```sh
+patch -d "$(west list zephyr -f '{abspath}')" -p1 \
+  < gateway/patches/rf2xx-rx-length.patch
+```
+
 
 ## Application threads
 
-`gateway_id` configures the radio/socket and logs statistics every five seconds.
-It starts automatically with a 1024-byte stack at priority 0. `radio_rx_id`
-uses a 2048-byte stack at priority 5 and waits on `rx_ready` until setup succeeds.
-`main()` returns immediately, leaving room to start other services such as an
-HTTP server. The main stack remains available for Zephyr initialization; the
-dedicated gateway thread adds its own stack and thread bookkeeping.
+`main()` configura o radio/socket, depois inicia o loop do HTTP. 
+Falhas no setup do rádio não bloqueiam o inicio do HTTP.
+`radio_rx_id` uses a 2048-byte stack at priority 5 and waits on `rx_ready`
+until radio setup succeeds. There is no separate gateway or HTTP thread.
+`radio_rx_id` usa pilha de 2048 bytes e testa `rx_ready`até que o radio esteja funcionando.
 
-Ethernet setup (`eth_setup()`) runs inline in the gateway thread: DHCP start
-plus a net-mgmt callback for carrier on/off and IPv4 address events. The
-5 s stats loop also logs carrier/admin status every other tick (10 s) when
-an Ethernet interface exists; carrier/IP changes still arrive via events.
 
-The RX loop shows the application flow: receive a complete frame, decode a
-`sensor_reading`, then call `handle_sensor_reading()`. That handler currently
-updates the memory table and prints the reading, and is the place to add
-application processing. It runs synchronously in the RX thread: keep work
-bounded so reception can continue.
-The reading belongs to the loop's stack and is reused on the next decode; copy
-it into a message queue or mutex-protected shared state for an HTTP server or
-other thread rather than retaining its pointer. Memory table access from other
-threads requires synchronization. HTTP service setup
-is not implemented by this example.
+O setup do ethernet (`eth_setup()`) corre durante o inicio e configura DHCP e
+callbacks para net-mgmt e eventos do enterço IPV4.
 
-## RAM budget
 
-The memory table holds the latest reading for up to 16 distinct nodes, using
-512 bytes on SAM R21. Slots are searched by node ID, so IDs 0 through 255
-remain valid. A new node is rejected with `-ENOSPC` when all slots are occupied;
-existing nodes can still update. The RX handler logs failed updates and still
-prints each received reading to the console. Entries remain until table reset.
+Teste no simulador os mecanismos de recuperação de falha do ethernet.
 
-The shared network data pools explicitly use eight RX and eight TX buffers,
-each with 128 bytes of payload capacity. Packet descriptor counts remain eight
-RX and two TX. Compared with the 256-entry table and sixteen buffers per data
-pool, these settings save 10176 bytes on the current SAM R21 build. Ethernet and
-HTTP traffic share these finite pools: validate concurrent radio traffic and
-HTTP requests before treating these counts as final.
+```sh
+python3 tests/drivers/ethernet/ksz8851snl/run.py
+```
 
-Further trims: the Ethernet monitor thread is folded into the gateway loop,
-net-mgmt events run on the system workqueue (`CONFIG_NET_MGMT_EVENT_SYSTEM_WORKQUEUE`),
-`ISR_STACK_SIZE=1024`, `MAIN_STACK_SIZE=512` (`main()` returns immediately),
-`NET_IPV4_MAX_ROUTES=2`, `NET_MAX_CONTEXTS=3` (radio socket + DHCP + one HTTP
-listener), `LOG_BUFFER_SIZE=512`. Measured SAM R21: RAM 23460/32768 (71.6%).
-`NET_MAX_CONTEXTS=3` and two routes are floors for the planned HTTP listener;
-raising either re-grows `contexts`/`route_ipv4_entries` linearly.
 
-The planned HTTP API is:
 
-- `GET /sensors`: latest reading for every stored node, encoded as JSON.
-- `GET /health`: status, uptime, and online node count.
-- `POST /reset`: restart the gateway for recovery.
+The RX loop receives a complete frame, decodes a `sensor_reading`, then calls
+`handle_sensor_reading()`. That handler updates the table under
+`gateway_memory_lock`, then prints outside the lock. The HTTP accessors copy
+state under the same lock, releasing it before JSON encoding or network I/O.
+Keep application processing bounded so reception can continue.
 
-Budget a bounded JSON output buffer and emit the sensor list incrementally,
-rather than reserving a full-response buffer. Copy readings under a lock, then
-release it before network I/O. If a consistent whole-table snapshot is needed,
-budget another 512 bytes for that snapshot. Define an age threshold for online
-nodes separately from table occupancy. HTTP, TCP, Ethernet, synchronized table
-reads, and these endpoints still need integration and a separate RAM check.
+O loop RX recebe um frame, decodifica `sensor_reading`, e chama
+`handle_sensor_reading()`. Esse handler atualize a tabela usando
+`gateway_memory_lock`, e depois imprime para o serial. Os endpoints HTTP copiam
+o estado também com o lock, soltando antes de encodificar o  JSON encoding e enviar para a rede.
+Isso permite que o gateway continue recebendo durante a transmissão HTTP.
 
-## Request data helpers
 
-`gateway_memory_get_all()` copies valid entries into a caller-owned array and
-returns the entry count. Allocate `GATEWAY_MEMORY_MAX_NODES` entries (512 bytes
-on SAM R21) for a complete snapshot. A smaller array returns `-ENOSPC` without
-writing a partial result. Entries are in slot order, not sorted by node ID;
-stale readings remain in the snapshot for `/sensors`.
+## RAM
 
-`gateway_memory_get_stats()` walks all slots and returns `valid_nodes` and
-`online_nodes` for `/health`. Pass gateway uptime from `k_uptime_get_32()` and
-an online timeout chosen from the expected sensor reporting interval. A node
-is online when the elapsed time since its last reception is less than or equal
-to that timeout. Receiving another reading makes a stale node online again;
-the helper does not remove stale entries or free their slots.
+The memory table holds the latest reading for up to four distinct nodes,
+using 128 bytes on SAM R21. Slots are searched by node ID, so IDs 0 through
+255 remain valid. A new node is rejected with `-ENOSPC` when all slots are
+occupied; existing nodes can still update. Stale entries retain their slots
+until reboot or explicit table reset.
 
-Both helpers allocate no heap memory. Serialize their calls with updates using
-the same lock, then encode/send the copied data after releasing that lock.
-Unsigned 32-bit elapsed time works across an uptime wrap when reception age
-is less than 2^32 milliseconds (about 49.7 days). Longer retained ages require
-wider timestamps or an explicit expiration policy to avoid wrap ambiguity.
-The single-node `gateway_memory_get()` API is unchanged.
+A tabela de memória segura as ultimas leituras para até quatro nós com IDs
+distintos, usando 128 bytes para cada nó. Se a tabela já está cheia rejeita
+com `-ENOSPC`.
 
-The five-second cumulative gateway log includes `stored` (valid table entries)
-and `active` (online nodes). `CONFIG_GATEWAY_NODE_ONLINE_TIMEOUT_MS` defaults to
-30000 ms and controls the active check. Table updates and statistics reads use
-`gateway_memory_lock`; future request handlers must use that same lock. Console
-output happens after releasing it, so printing does not hold up table readers.
+O laço HTTP usa um buffer de JSON de 515 bytes e um chunk de entrade de 128 bytes.
+O driver KZS8851 usa um buffer de 1528 bytes, rejeitando jumbo frames.
+
+`NET_MAX_CONTEXTS=4` cobre o rádio, HTTP, cliente e um extra cliente extra que recebe
+HTTP 500 (sobrecarregado).
+`NET_MAX_CONN=5` permite uso de DHCP junto com esses outros clientes.
+
+O projeto usa 32244/32768 bytes de RAM (98.40%) e 127280/262144 bytes de flash (48.55%).
+
+
+## HTTP API
+
+`gateway/src/http_server.c` serve um cliente de cada vez usando o parser HTTP do 
+Zephyr. Ele escuta em `CONFIG_GATEWAY_HTTP_PORT` (= 80) e responde com `Content-Length`, 
+`application/json`, e `Connection: close`
+
+- `GET /sensors`: 200 com array JSON das leituras.
+- `GET /health`: 200 com `status`, 64-bit `uptime_ms`, e `online_nodes`.
+  `status` é `ok`  quando radio está functionando, `degraded` caso contrário; nós
+  online são contados se transmitiram nos ultimos `CONFIG_GATEWAY_NODE_ONLINE_TIMEOUT_MS`, (= 30000 ms).
+- `POST /reset`: 202 com  `{"status":"restarting"}`. Após isso reseta.
+
+Outros métodos em uma dessas rotas retorna 405 with `Allow`; desconhecidos
+retornam 404.  Pedidos malformados retornam 400; Pedidos acima de 2048 bytes retornam 413.
+
+Cada pedido é logado para o serial.
+
+Não possui autenticação, portando só deve ser usado em rede confiavel. 
+Permitindo que qualquer um resete o gateway pode impactar a disponibilidade do sistema.
+
+```sh
+curl -i http://GATEWAY_IP/sensors
+curl -i http://GATEWAY_IP/health
+curl -i -X POST http://GATEWAY_IP/reset
+```
+
+

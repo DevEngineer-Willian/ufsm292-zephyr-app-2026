@@ -80,9 +80,10 @@ LOG_MODULE_REGISTER(eth_ksz8851snl, CONFIG_ETHERNET_LOG_LEVEL);
 #define IRQ_RXI        BIT(13)
 #define IRQ_RXOI       BIT(11)
 #define IRQ_RXPSI      BIT(8)
+#define IRQ_SPIBEI     BIT(1)
 /* Wake-up IRQs (RXWFDI/RXMPDI/LDI) are not ackable via ISR W1C; enabling
  * them would wedge edge-triggered INTRN. Leave them masked. */
-#define KSZ_IRQ_MASK   (IRQ_LCI | IRQ_TXI | IRQ_RXI | IRQ_RXOI | IRQ_RXPSI)
+#define KSZ_IRQ_MASK   (IRQ_LCI | IRQ_TXI | IRQ_RXI | IRQ_RXOI | IRQ_RXPSI | IRQ_SPIBEI)
 #define RXFSHR_RXFV    BIT(15)
 /* Checksum-status bits 13:10 are not errors unless that offload is enabled. */
 #define RXFSHR_ERROR   (BIT(4) | BIT(2) | BIT(1) | BIT(0))
@@ -91,7 +92,8 @@ LOG_MODULE_REGISTER(eth_ksz8851snl, CONFIG_ETHERNET_LOG_LEVEL);
 #define P1SR_LINK_GOOD BIT(5)
 #define KS_RX_MAX_WIRE 2004U
 #define KS_RX_PREFIX   8U
-#define KS_FRAME_MAX   (KS_RX_MAX_WIRE + KS_RX_PREFIX)
+/* Only standard Ethernet frames are delivered; larger frames are released. */
+#define KS_FRAME_MAX   (ROUND_UP(KS_TX_MAX_FRAME + 4U, 4U) + KS_RX_PREFIX)
 #define KS_TX_MAX_FRAME 1514U
 #define KS_MIN_FRAME   60U
 #define KS_TX_MIN      14U
@@ -206,6 +208,7 @@ struct ksz_data {
 	uint8_t fid;
 	bool started;
 	bool carrier;
+	bool recovery_pending;
 	bool rx_prefix_logged;
 	bool rx_drop_logged;
 };
@@ -396,6 +399,9 @@ static int update_link_locked(const struct device *dev)
 	if (ret < 0) {
 		return ret;
 	}
+	if (status == 0xffff) {
+		return -EIO;
+	}
 	ksz_debug.p1sr = status;
 	bool up = (status & P1SR_LINK_GOOD) != 0;
 
@@ -414,6 +420,19 @@ static int update_link_locked(const struct device *dev)
 	return 0;
 }
 
+/* Caller holds lock. Do not touch the QMU again until recovery succeeds. */
+static void request_recovery_locked(const struct device *dev, int err)
+{
+	struct ksz_data *data = dev->data;
+
+	debug_note(err);
+	if (!data->recovery_pending) {
+		data->recovery_pending = true;
+		LOG_WRN("QMU recovery requested: %d", err);
+		k_sem_give(&data->event);
+	}
+}
+
 static void rx_drop(struct ksz_data *data, uint16_t stat, uint16_t wire_len)
 {
 	ksz_debug.rx_drops++;
@@ -426,6 +445,27 @@ static void rx_drop(struct ksz_data *data, uint16_t stat, uint16_t wire_len)
 	}
 }
 
+/* RRXEF is asynchronous: do not start another RX/TX DMA until it clears. */
+static int rx_release(const struct device *dev)
+{
+	int ret = reg_write(dev, KS_RXQCR, RXQCR_BASE | RXQCR_RRXEF);
+	int64_t deadline = k_uptime_get() + KS_TX_WAIT_MS;
+
+	while (ret == 0) {
+		uint16_t control;
+
+		ret = reg_read(dev, KS_RXQCR, &control);
+		if (ret < 0 || (control & RXQCR_RRXEF) == 0) {
+			return ret;
+		}
+		if (k_uptime_get() >= deadline) {
+			return -ETIMEDOUT;
+		}
+		k_msleep(1);
+	}
+	return ret;
+}
+
 static int rx_drain(const struct device *dev)
 {
 	struct ksz_data *data = dev->data;
@@ -433,8 +473,10 @@ static int rx_drain(const struct device *dev)
 	int ret = reg_read(dev, KS_RXFCTR, &ctr);
 
 	if (ret < 0) {
-		k_sem_give(&data->event);
 		return ret;
+	}
+	if (ctr == 0xffff) {
+		return -EIO;
 	}
 	ksz_debug.rxfctr = ctr;
 	unsigned int count = RXFCTR_COUNT(ctr);
@@ -442,53 +484,46 @@ static int rx_drain(const struct device *dev)
 	if (count == 0U) {
 		return 0;
 	}
-	unsigned int limit = count;
-
-	if (limit > 8U) {
-		limit = 8U;
-	}
-	for (unsigned int n = 0; n < limit; n++) {
+	/* RXFCTR and the header registers describe one interrupt snapshot.
+	 * Consume all of it before acknowledging another RX interrupt.
+	 */
+	for (unsigned int n = 0; n < count; n++) {
 		uint16_t stat;
 		uint16_t wire_len;
 
 		ret = reg_read(dev, KS_RXFHSR, &stat);
 		if (ret < 0) {
-			k_sem_give(&data->event);
 			return ret;
 		}
 		ret = reg_read(dev, KS_RXFHBCR, &wire_len);
 		if (ret < 0) {
-			k_sem_give(&data->event);
 			return ret;
 		}
 		wire_len &= RXFHBCR_MASK;
 		ksz_debug.rxfhsr = stat;
 		ksz_debug.rxfhbcr = wire_len;
-		if ((stat & RXFSHR_RXFV) == 0) {
-			break;
-		}
-		ret = reg_write(dev, KS_RXFDPR, RXFDPR_RXFPAI);
-		if (ret < 0) {
-			k_sem_give(&data->event);
-			return ret;
-		}
-		ret = reg_write(dev, KS_RXQCR, RXQCR_BASE | RXQCR_SDA);
-		if (ret < 0) {
-			k_sem_give(&data->event);
-			return ret;
+		if (stat == 0xffff || (stat & RXFSHR_RXFV) == 0 ||
+		    wire_len < 4U || wire_len > KS_RX_MAX_WIRE) {
+			rx_drop(data, stat, wire_len);
+			return -EIO;
 		}
 
 		struct net_pkt *pkt = NULL;
-		bool readable = (stat & RXFSHR_RXFV) != 0 && wire_len >= 4U &&
-				wire_len <= KS_RX_MAX_WIRE;
-		size_t frame_len = readable ? (size_t)wire_len - 4U : 0U;
-		size_t transfer_len = readable ? ROUND_UP(wire_len, 4) + KS_RX_PREFIX : 0U;
-		bool deliver = readable && (stat & RXFSHR_ERROR) == 0 &&
+		size_t frame_len = (size_t)wire_len - 4U;
+		size_t transfer_len = ROUND_UP(wire_len, 4) + KS_RX_PREFIX;
+		bool deliver = (stat & RXFSHR_ERROR) == 0 &&
 			       wire_len >= KS_MIN_FRAME + 4U &&
 			       frame_len <= KS_TX_MAX_FRAME &&
 			       transfer_len <= sizeof(data->frame);
 
-		if (readable && transfer_len <= sizeof(data->frame)) {
+		if (transfer_len <= sizeof(data->frame)) {
+			ret = reg_write(dev, KS_RXFDPR, RXFDPR_RXFPAI);
+			if (ret == 0) {
+				ret = reg_write(dev, KS_RXQCR, RXQCR_BASE | RXQCR_SDA);
+			}
+			if (ret < 0) {
+				return ret;
+			}
 			ret = fifo_read(dev, data->frame, transfer_len);
 			if (ret == 0 && !data->rx_prefix_logged) {
 				data->rx_prefix_logged = true;
@@ -514,7 +549,7 @@ static int rx_drain(const struct device *dev)
 			rx_drop(data, stat, wire_len);
 		}
 
-		int qret = reg_write(dev, KS_RXQCR, RXQCR_BASE | RXQCR_RRXEF);
+		int qret = rx_release(dev);
 
 		if (ret == 0) {
 			ret = qret;
@@ -523,7 +558,7 @@ static int rx_drain(const struct device *dev)
 			if (pkt != NULL) {
 				net_pkt_unref(pkt);
 			}
-			k_sem_give(&data->event);
+			request_recovery_locked(dev, ret);
 			return ret;
 		}
 		if (pkt != NULL) {
@@ -537,14 +572,11 @@ static int rx_drain(const struct device *dev)
 				eth_stats_update_pkts_rx(data->iface);
 			}
 			k_mutex_lock(&data->lock, K_FOREVER);
-			if (ret < 0) {
-				k_sem_give(&data->event);
-				return ret;
+			/* TX may have failed while the network stack owned the lock. */
+			if (!data->started || data->recovery_pending) {
+				return -EIO;
 			}
 		}
-	}
-	if (count > limit) {
-		k_sem_give(&data->event);
 	}
 	return 0;
 }
@@ -559,8 +591,18 @@ static int wait_metfe_clear(const struct device *dev)
 		int ret;
 
 		k_mutex_lock(&data->lock, K_FOREVER);
+		if (!data->started || data->recovery_pending) {
+			k_mutex_unlock(&data->lock);
+			return -EIO;
+		}
 		ret = reg_read(dev, KS_TXQCR, &txqcr);
+		if (ret == 0 && txqcr == 0xffff) {
+			ret = -EIO;
+		}
 		if (ret < 0 || (txqcr & TXQCR_METFE) == 0) {
+			if (ret < 0) {
+				request_recovery_locked(dev, ret);
+			}
 			ksz_debug.txqcr = txqcr;
 			k_mutex_unlock(&data->lock);
 			return ret;
@@ -580,6 +622,7 @@ static int wait_metfe_clear(const struct device *dev)
 			}
 			ksz_debug.tx_timeouts++;
 			ksz_debug.last_errno = -ETIMEDOUT;
+			request_recovery_locked(dev, -ETIMEDOUT);
 			k_mutex_unlock(&data->lock);
 			LOG_ERR("tx timeout txqcr=0x%04x txsr=0x%04x isr=0x%04x txmir=0x%04x",
 				ksz_debug.txqcr, ksz_debug.txsr, ksz_debug.isr, ksz_debug.txmir);
@@ -590,75 +633,44 @@ static int wait_metfe_clear(const struct device *dev)
 	}
 }
 
-static void worker(void *a, void *b, void *c)
-{
-	ARG_UNUSED(b);
-	ARG_UNUSED(c);
-	const struct device *dev = a;
-	struct ksz_data *data = dev->data;
-
-	while (true) {
-		(void)k_sem_take(&data->event, K_MSEC(100));
-		if (!data->started) {
-			continue;
-		}
-		k_mutex_lock(&data->lock, K_FOREVER);
-		uint16_t irq = 0;
-		int ret = reg_read(dev, KS_ISR, &irq);
-		uint16_t handled = irq & KSZ_IRQ_MASK;
-
-		ksz_debug.isr = irq;
-		/* Poll reads ISR, so a missed edge on level-low INTRN still drains. */
-		if (ret == 0 && handled != 0) {
-			ret = reg_write(dev, KS_ISR, handled);
-		}
-		if (ret == 0) {
-			ret = rx_drain(dev);
-		}
-		if (ret == 0) {
-			ret = update_link_locked(dev);
-		}
-		if (ret < 0) {
-			debug_note(ret);
-			LOG_ERR("KSZ service failed: %d", ret);
-		}
-		k_mutex_unlock(&data->lock);
-	}
-}
-
-static void irq_cb(const struct device *port, struct gpio_callback *cb, uint32_t pins)
-{
-	ARG_UNUSED(port);
-	ARG_UNUSED(pins);
-	struct ksz_data *data = CONTAINER_OF(cb, struct ksz_data, gpio_cb);
-
-	k_sem_give(&data->event);
-}
-
-static int start(const struct device *dev, struct net_if *iface)
+/* Exit DMA first: only RXQCR is accessible while SDA is set. Resetting
+ * abandons both queues and the consumed header snapshot, not the PHY link.
+ */
+static int configure_qmu_locked(const struct device *dev)
 {
 	struct ksz_data *data = dev->data;
 	uint8_t mac_rd[6];
-	uint16_t p1cr;
-	uint16_t p1sr;
-	int ret;
+	uint16_t value;
+	const uint16_t txcr = TXCR_TXFCE | TXCR_TXPE | TXCR_TXCRC | TXCR_TXE;
+	const uint16_t rxcr = RXCR1_RXPAFMA | RXCR1_RXFCE | RXCR1_RXBE |
+			      RXCR1_RXUE | RXCR1_RXE;
+	int ret = reg_write(dev, KS_RXQCR, RXQCR_BASE);
 
-	k_mutex_lock(&data->lock, K_FOREVER);
-	ret = force_pm_normal_locked(dev);
+	if (ret == 0) {
+		ret = reg_write(dev, KS_IER, 0);
+	}
 	if (ret == 0) {
 		ret = reg_write(dev, KS_GRR, GRR_QMU);
 	}
 	if (ret == 0) {
-		k_sleep(K_MSEC(1));
+		k_msleep(1);
 		ret = reg_write(dev, KS_GRR, 0);
 	}
 	if (ret == 0) {
-		k_sleep(K_MSEC(1));
-		ret = reg_write(dev, KS_TXCR, TXCR_TXFCE | TXCR_TXPE | TXCR_TXCRC | TXCR_TXE);
+		k_msleep(1);
+		ret = reg_read(dev, KS_CIDER, &value);
+	}
+	if (ret == 0 && (value & 0xfff0) != KS_CIDER_ID) {
+		ret = -ENODEV;
 	}
 	if (ret == 0) {
-		ret = reg_write(dev, KS_RXCR1, RXCR1_RXPAFMA | RXCR1_RXFCE | RXCR1_RXBE |
-				RXCR1_RXUE | RXCR1_RXE);
+		ret = force_pm_normal_locked(dev);
+	}
+	if (ret == 0) {
+		ret = reg_write(dev, KS_TXCR, txcr);
+	}
+	if (ret == 0) {
+		ret = reg_write(dev, KS_RXCR1, rxcr & (uint16_t)~RXCR1_RXE);
 	}
 	if (ret == 0) {
 		ret = reg_write(dev, KS_RXCR2, RXCR2_SRDBL_FRAME);
@@ -682,9 +694,133 @@ static int start(const struct device *dev, struct net_if *iface)
 		ret = read_mac_locked(dev, mac_rd);
 	}
 	if (ret == 0 && memcmp(mac_rd, data->mac, sizeof(mac_rd)) != 0) {
-		LOG_ERR("MAC readback mismatch");
-		debug_note(-EIO);
+		ret = -EIO;
 	}
+	if (ret == 0) {
+		ret = reg_write(dev, KS_ISR, 0xffff);
+	}
+	/* Enable reception after clearing reset IRQs: do not acknowledge a new
+	 * RX snapshot here without draining it.
+	 */
+	if (ret == 0) {
+		ret = reg_write(dev, KS_RXCR1, rxcr);
+	}
+	if (ret == 0) {
+		ret = reg_write(dev, KS_IER, KSZ_IRQ_MASK);
+	}
+	if (ret == 0) {
+		ret = reg_read(dev, KS_TXCR, &value);
+	}
+	if (ret == 0 && value != txcr) {
+		ret = -EIO;
+	}
+	if (ret == 0) {
+		ret = reg_read(dev, KS_RXCR1, &value);
+	}
+	if (ret == 0 && value != rxcr) {
+		ret = -EIO;
+	}
+	if (ret == 0) {
+		ret = reg_read(dev, KS_IER, &value);
+	}
+	if (ret == 0 && value != KSZ_IRQ_MASK) {
+		ret = -EIO;
+	}
+	if (ret == 0) {
+		ret = reg_read(dev, KS_RXQCR, &value);
+	}
+	if (ret == 0 && (value & (RXQCR_BASE | RXQCR_RRXEF)) != RXQCR_BASE) {
+		ret = -EIO;
+	}
+	return ret;
+}
+
+/* Match send's lock order. Never reset a TX that is still being serviced. */
+static int recover(const struct device *dev)
+{
+	struct ksz_data *data = dev->data;
+	int ret = 0;
+
+	k_mutex_lock(&data->tx_lock, K_FOREVER);
+	k_mutex_lock(&data->lock, K_FOREVER);
+	if (data->started && data->recovery_pending) {
+		ret = configure_qmu_locked(dev);
+		if (ret == 0) {
+			data->recovery_pending = false;
+			LOG_INF("QMU recovered");
+		} else {
+			debug_note(ret);
+			LOG_ERR("QMU recovery failed: %d; retrying", ret);
+		}
+	}
+	k_mutex_unlock(&data->lock);
+	k_mutex_unlock(&data->tx_lock);
+	return ret;
+}
+
+static void worker(void *a, void *b, void *c)
+{
+	ARG_UNUSED(b);
+	ARG_UNUSED(c);
+	const struct device *dev = a;
+	struct ksz_data *data = dev->data;
+
+	while (true) {
+		(void)k_sem_take(&data->event, K_MSEC(100));
+		if (recover(dev) < 0) {
+			continue;
+		}
+		k_mutex_lock(&data->lock, K_FOREVER);
+		if (!data->started || data->recovery_pending) {
+			k_mutex_unlock(&data->lock);
+			continue;
+		}
+		uint16_t irq = 0;
+		int ret = reg_read(dev, KS_ISR, &irq);
+		uint16_t handled = irq & KSZ_IRQ_MASK;
+
+		ksz_debug.isr = irq;
+		if (ret == 0 && (irq == 0xffff ||
+		    (irq & (IRQ_RXPSI | IRQ_RXOI | IRQ_SPIBEI)) != 0)) {
+			LOG_WRN("QMU fault isr=0x%04x", irq);
+			ret = -EIO;
+		}
+		/* Poll reads ISR, so a missed edge on level-low INTRN still drains. */
+		if (ret == 0 && handled != 0) {
+			ret = reg_write(dev, KS_ISR, handled);
+		}
+		if (ret == 0 && (irq & IRQ_RXI) != 0) {
+			ret = rx_drain(dev);
+		}
+		if (ret == 0) {
+			ret = update_link_locked(dev);
+		}
+		if (ret < 0) {
+			request_recovery_locked(dev, ret);
+		}
+		k_mutex_unlock(&data->lock);
+	}
+}
+
+static void irq_cb(const struct device *port, struct gpio_callback *cb, uint32_t pins)
+{
+	ARG_UNUSED(port);
+	ARG_UNUSED(pins);
+	struct ksz_data *data = CONTAINER_OF(cb, struct ksz_data, gpio_cb);
+
+	k_sem_give(&data->event);
+}
+
+static int start(const struct device *dev, struct net_if *iface)
+{
+	struct ksz_data *data = dev->data;
+	uint16_t p1cr;
+	uint16_t p1sr;
+	int ret;
+
+	k_mutex_lock(&data->tx_lock, K_FOREVER);
+	k_mutex_lock(&data->lock, K_FOREVER);
+	ret = configure_qmu_locked(dev);
 	if (ret == 0) {
 		ret = reg_read(dev, KS_P1SR, &p1sr);
 	}
@@ -699,14 +835,9 @@ static int start(const struct device *dev, struct net_if *iface)
 		ret = reg_read(dev, KS_P1SR, &p1sr);
 	}
 	if (ret == 0) {
-		ret = reg_write(dev, KS_ISR, 0xffff);
-	}
-	if (ret == 0) {
-		ret = reg_write(dev, KS_IER, KSZ_IRQ_MASK);
-	}
-	if (ret == 0) {
 		data->iface = iface;
 		data->started = true;
+		data->recovery_pending = false;
 		debug_capture_locked(dev);
 		LOG_INF("up cider=0x%04x pmecr=0x%04x p1cr=0x%04x p1sr 0x%04x->0x%04x mac %s",
 			ksz_debug.cider, ksz_debug.pmecr, ksz_debug.p1cr,
@@ -714,6 +845,7 @@ static int start(const struct device *dev, struct net_if *iface)
 			memcmp(ksz_debug.mac_rd, ksz_debug.mac_wr, 6) == 0 ? "ok" : "mismatch");
 	}
 	k_mutex_unlock(&data->lock);
+	k_mutex_unlock(&data->tx_lock);
 	if (ret == 0) {
 		k_sem_give(&data->event);
 	} else {
@@ -726,6 +858,7 @@ static int stop(const struct device *dev, struct net_if *iface)
 {
 	struct ksz_data *data = dev->data;
 
+	k_mutex_lock(&data->tx_lock, K_FOREVER);
 	k_mutex_lock(&data->lock, K_FOREVER);
 	data->started = false;
 	int ret = reg_write(dev, KS_IER, 0);
@@ -739,6 +872,7 @@ static int stop(const struct device *dev, struct net_if *iface)
 	data->carrier = false;
 	net_eth_carrier_off(iface);
 	k_mutex_unlock(&data->lock);
+	k_mutex_unlock(&data->tx_lock);
 	return ret;
 }
 
@@ -758,12 +892,17 @@ static int send(const struct device *dev, struct net_pkt *pkt)
 		return ret;
 	}
 	k_mutex_lock(&data->lock, K_FOREVER);
-	if (net_pkt_read(pkt, data->frame, len) < 0) {
+	if (!data->started || data->recovery_pending) {
+		ret = -EIO;
+	} else if (net_pkt_read(pkt, data->frame, len) < 0) {
 		ret = -EIO;
 	} else {
 		uint16_t free;
 
 		ret = reg_read(dev, KS_TXMIR, &free);
+		if (ret == 0 && free == 0xffff) {
+			ret = -EIO;
+		}
 		size_t required = ROUND_UP(len + 4, 4);
 
 		if (ret == 0 && (free & 0x1fff) < required) {
@@ -790,6 +929,9 @@ static int send(const struct device *dev, struct net_pkt *pkt)
 		if (ret == 0) {
 			ret = reg_write(dev, KS_TXQCR, TXQCR_METFE);
 		}
+		if (ret < 0 && ret != -ENOBUFS) {
+			request_recovery_locked(dev, ret);
+		}
 	}
 	k_mutex_unlock(&data->lock);
 	if (ret == 0) {
@@ -814,9 +956,19 @@ static int set_config(const struct device *dev, struct net_if *iface,
 	}
 	struct ksz_data *data = dev->data;
 
-	memcpy(data->mac, config->mac_address.addr, sizeof(data->mac));
 	k_mutex_lock(&data->lock, K_FOREVER);
-	int ret = write_mac_locked(dev, data->mac);
+	int ret;
+
+	if (data->recovery_pending) {
+		ret = -EIO;
+	} else {
+		ret = write_mac_locked(dev, config->mac_address.addr);
+		if (ret == 0) {
+			memcpy(data->mac, config->mac_address.addr, sizeof(data->mac));
+		} else {
+			request_recovery_locked(dev, ret);
+		}
+	}
 
 	k_mutex_unlock(&data->lock);
 	return ret;
