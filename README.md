@@ -188,3 +188,22 @@ Com o ambiente virtual do Zephyr ativo, compile e grave o firmware a partir da r
 ```bash
 west build -b samd21_xpro servidor -p always
 west flash
+
+### Configuração de Rede
+
+Por padrão, o servidor utiliza endereçamento IPv4 estático (CONFIG_NET_DHCPV4=n em servidor/prj.conf) para operação direta em bancada:
+
+- IP do Servidor (Placa): 192.168.0.200 (Máscara 255.255.255.0)
+- Porta da API HTTP: 5501 (Endpoints /health e /log?node=<id>&n=<qtd>)
+- Gateway Alvo (Coletor): 192.168.0.100:5500 (GET /sensors a cada 5000 ms)
+
+Preparando o Host (Conexão Direta RJ45):
+
+  sudo ip link set enp0s25 up
+  sudo ip addr replace 192.168.0.100/24 dev enp0s25
+  sudo ip route replace 192.168.0.200/32 dev enp0s25
+
+Validação Rápida:
+
+  curl -i "http://192.168.0.200:5501/health"
+  curl -i "http://192.168.0.200:5501/log?node=1&n=5"
