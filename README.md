@@ -167,3 +167,24 @@ west build -p always -b samr21_xpro app
 
 # 3. Gravar na placa
 west flash
+
+
+## Servidor IoT (Ethernet KSZ8851SNL + Cartão SD)
+
+Implementação do servidor HTTP e coletor de dados na plataforma **ATSAMD21J18A** (`samd21_xpro`) com interface Ethernet via **Microchip KSZ8851SNL** (SPI / SERCOM5) e armazenamento persistente em cartão microSD (`/SD:/LEITURAS.CSV`).
+
+### Pré-requisitos de Kernel (Driver Ethernet)
+
+O controlador **KSZ8851SNL** sobre SPI exige o driver correspondente habilitado na árvore do Zephyr RTOS (`v4.5.0-rc1` ou superior):
+
+* **Branch do Zephyr:** `ksz8851-driver` (contendo `drivers/ethernet/eth_ksz8851snl.c` e o binding `microchip,ksz8851snl.yaml`)
+* **Kconfig:** `CONFIG_ETH_KSZ8851SNL=y`
+* **Ajuste de RAM/Stack (SAMD21 - 32 KB SRAM):** `CONFIG_NET_TCP_WORKQ_STACK_SIZE=2048`
+
+### Compilação e Gravação
+
+Com o ambiente virtual do Zephyr ativo, compile e grave o firmware a partir da raiz do projeto:
+
+```bash
+west build -b samd21_xpro servidor -p always
+west flash
